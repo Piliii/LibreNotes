@@ -2,8 +2,8 @@ Categories:
   - Writing
 License: AGPL-3.0-only
 AuthorName: Piliii
-SourceCode: https://github.com/Piliii/librenotes
-IssueTracker: https://github.com/Piliii/librenotes/issues
+SourceCode: https://github.com/Piliii/LibreNotes
+IssueTracker: https://github.com/Piliii/LibreNotes/issues
 
 AutoName: LibreNotes
 Description: |-
@@ -27,12 +27,12 @@ Description: |-
   All source code is AGPLv3.
 
 RepoType: git
-Repo: https://github.com/Piliii/librenotes
+Repo: https://github.com/Piliii/LibreNotes
 
 Builds:
-  - versionName: '1.0.0'
+  - versionName: '1.0.1'
     versionCode: 1
-    commit: v1.0.0
+    commit: v1.0.1
     subdir: clients/app
     gradle:
       - yes
