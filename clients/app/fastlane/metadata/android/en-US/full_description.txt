@@ -1,0 +1,14 @@
+LibreNotes is a private, self-hosted note-taking app with end-to-end encryption. Your notes are stored only on your own server — no cloud accounts, no third-party services, no tracking.
+
+Features:
+- Markdown notes with live preview
+- End-to-end encryption (XChaCha20-Poly1305 + Argon2id): the server never sees your plaintext or keys
+- Offline-first: full local cache, works without network, syncs when your server is reachable
+- Conflict resolution: if two devices edit the same note, you choose the winner
+- Trash bin with restore and permanent delete
+- Dark theme with orange accent
+- Works on Android, Linux desktop, and web from the same codebase
+
+The sync server is a single compiled binary you run on a home server. It binds to your LAN only. For access away from home, add devices and the server to a Tailscale or WireGuard mesh — no server changes needed.
+
+All source code is AGPLv3. No proprietary dependencies, no Firebase, no Google Play Services.

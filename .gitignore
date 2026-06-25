@@ -1,0 +1,25 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+# Server runtime data (db, WAL, auth token) — never commit these
+server/data/
+
+# Stray SQLite files at repo root
+*.sqlite
+*.db
+
+# Claude Code internals (memory, task state)
+.claude/
+memory/
+.claude
+
+# Editor / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+notally.sqlite

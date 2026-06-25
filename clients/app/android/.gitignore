@@ -1,0 +1,13 @@
+/.gradle
+/captures/
+/local.properties
+GeneratedPluginRegistrant.java
+.cxx/
+
+# Signing keys — never commit
+key.properties
+**/*.keystore
+**/*.jks
+
+# Note: gradlew, gradlew.bat, and gradle-wrapper.jar ARE tracked intentionally.
+# F-Droid and reproducible builds require the Gradle wrapper to be in the repo.

@@ -1,0 +1,9 @@
+Initial release.
+
+- Markdown notes with live preview
+- End-to-end encryption (XChaCha20-Poly1305 + Argon2id)
+- Offline-first local cache with opportunistic sync
+- Conflict resolution UI
+- Trash bin with restore and permanent delete (propagated across devices)
+- Dark theme, orange accent, resizable sidebar on desktop
+- Self-hosted sync server (Shelf + SQLite, single binary)

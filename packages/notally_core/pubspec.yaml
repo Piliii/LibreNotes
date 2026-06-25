@@ -1,0 +1,9 @@
+name: notally_core
+description: Shared models and sync DTOs for Notally (Flutter app + Dart server).
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.8.0
+# Intentionally dependency-free (only dart:core/convert/typed_data) so it is
+# trivial to audit and safe to share between the server and every client.
