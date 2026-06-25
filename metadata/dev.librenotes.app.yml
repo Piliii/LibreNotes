@@ -1,0 +1,42 @@
+Categories:
+  - Writing
+License: AGPL-3.0-only
+AuthorName: Piliii
+SourceCode: https://github.com/Piliii/librenotes
+IssueTracker: https://github.com/Piliii/librenotes/issues
+
+AutoName: LibreNotes
+Description: |-
+  Private, self-hosted, end-to-end encrypted note-taking. Your notes
+  live on your own server — no cloud accounts, no tracking, no
+  third-party services.
+
+  Supports Markdown with live preview, offline-first operation (syncs
+  when the server is reachable), end-to-end encryption
+  (XChaCha20-Poly1305 + Argon2id), and a conflict resolution UI when
+  two devices edit the same note simultaneously.
+
+  Includes a trash bin with restore and permanent delete, propagated
+  across devices. Designed for a single owner with multiple devices.
+
+  Requires a self-hosted LibreNotes sync server running on your LAN
+  (Dart + SQLite, single compiled binary). For remote access, add
+  devices and the server to a Tailscale or WireGuard mesh — no server
+  code changes needed.
+
+  All source code is AGPLv3.
+
+RepoType: git
+Repo: https://github.com/Piliii/librenotes
+
+Builds:
+  - versionName: '1.0.0'
+    versionCode: 1
+    commit: v1.0.0
+    subdir: clients/app
+    gradle:
+      - yes
+    flutter: stable
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
