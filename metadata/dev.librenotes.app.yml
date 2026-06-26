@@ -6,37 +6,32 @@ SourceCode: https://github.com/Piliii/LibreNotes
 IssueTracker: https://github.com/Piliii/LibreNotes/issues
 
 AutoName: LibreNotes
-Description: |-
-  Private, self-hosted, end-to-end encrypted note-taking. Your notes
-  live on your own server — no cloud accounts, no tracking, no
-  third-party services.
-
-  Supports Markdown with live preview, offline-first operation (syncs
-  when the server is reachable), end-to-end encryption
-  (XChaCha20-Poly1305 + Argon2id), and a conflict resolution UI when
-  two devices edit the same note simultaneously.
-
-  Includes a trash bin with restore and permanent delete, propagated
-  across devices. Designed for a single owner with multiple devices.
-
-  Requires a self-hosted LibreNotes sync server running on your LAN
-  (Dart + SQLite, single compiled binary). For remote access, add
-  devices and the server to a Tailscale or WireGuard mesh — no server
-  code changes needed.
-
-  All source code is AGPLv3.
 
 RepoType: git
 Repo: https://github.com/Piliii/LibreNotes
 
 Builds:
-  - versionName: '1.0.1'
+  - versionName: 1.0.1
     versionCode: 1
-    commit: v1.0.1
+    commit: cb4bb9666c9205c560e8662a8b26885c04aed8b6
     subdir: clients/app
-    gradle:
-      - yes
-    flutter: stable
+    output: build/app/outputs/flutter-apk/app-release.apk
+    srclibs:
+      - flutter@stable
+    prebuild:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get
+    scanignore:
+      - packages/notally_core
+    scandelete:
+      - clients/app/.pub-cache
+    build:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter build apk --release --target-platform=android-arm64
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
+UpdateCheckData: clients/app/pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
+CurrentVersion: 1.0.1
+CurrentVersionCode: 1
