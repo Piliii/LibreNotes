@@ -121,9 +121,13 @@ jobs:
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+          ssh-keyscan -H aur.archlinux.org > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          printf 'Host aur.archlinux.org\n  IdentityFile ~/.ssh/id_rsa\n  StrictHostKeyChecking accept-new\n' > ~/.ssh/config
+          chmod 600 ~/.ssh/config
 
       - name: Update PKGBUILD and push to AUR
         run: |
