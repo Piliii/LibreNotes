@@ -365,7 +365,7 @@ class SyncService {
       pinned: p['pinned'] as bool? ?? false,
       color: p['color'] as String? ?? '#2a2a2a',
       createdAt: p['createdAt'] as int? ?? note.updatedAt,
-      updatedAt: note.updatedAt,
+      updatedAt: p['updatedAt'] as int? ?? note.updatedAt,
       rev: note.rev,
       seq: note.seq,
       deleted: false,
@@ -393,7 +393,7 @@ class SyncService {
       pinned: p['pinned'] as bool? ?? false,
       color: p['color'] as String? ?? '#2a2a2a',
       createdAt: p['createdAt'] as int? ?? note.updatedAt,
-      updatedAt: note.updatedAt,
+      updatedAt: p['updatedAt'] as int? ?? note.updatedAt,
       rev: note.rev,
       seq: note.seq,
       deleted: false,
@@ -406,6 +406,7 @@ class SyncService {
         'pinned': n.pinned,
         'color': n.color,
         'createdAt': n.createdAt,
+        'updatedAt': n.updatedAt,
       };
 
   bool _hasConflict(String id) => conflicts.value.any((c) => c.id == id);

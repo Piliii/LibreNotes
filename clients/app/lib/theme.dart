@@ -1,6 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
+/// Preset note background colors (hex, same format stored in the Note model).
+const kNoteColorHexes = [
+  '#2a2a2a', // default dark
+  '#3d2020', // rust
+  '#3d3120', // amber
+  '#263d20', // forest
+  '#20353d', // teal
+  '#20273d', // ocean
+  '#2d203d', // violet
+  '#3d2035', // mauve
+];
+
+/// Converts a stored hex color string (e.g. "#2a2a2a") to a Flutter [Color].
+Color colorFromHex(String hex) {
+  final h = hex.startsWith('#') ? hex.substring(1) : hex;
+  return Color(int.parse('FF$h', radix: 16));
+}
+
 /// Notally's palette, lifted straight from the original prototype.
 abstract final class NotallyColors {
   static const background = Color(0xFF1A1A1A);

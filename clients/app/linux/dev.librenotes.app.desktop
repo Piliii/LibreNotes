@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=LibreNotes
+GenericName=Note Taking
+Comment=Private, self-hosted, end-to-end encrypted notes
+Exec=librenotes
+Icon=dev.librenotes.app
+Type=Application
+Categories=Office;TextEditor;
+Keywords=notes;markdown;encrypted;privacy;
+StartupWMClass=librenotes

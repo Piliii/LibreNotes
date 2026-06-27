@@ -55,13 +55,18 @@ class NotesRepository {
     bool? pinned,
     String? color,
   }) async {
+    // Only bump updatedAt (which drives sort order) when text changes.
+    // Color and pin changes are synced via dirty=true but don't reorder notes.
+    final textChanged = title != null || body != null;
     await (_db.update(_db.notes)..where((t) => t.id.equals(id))).write(
       NotesCompanion(
         title: title == null ? const Value.absent() : Value(title),
         body: body == null ? const Value.absent() : Value(body),
         pinned: pinned == null ? const Value.absent() : Value(pinned),
         color: color == null ? const Value.absent() : Value(color),
-        updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+        updatedAt: textChanged
+            ? Value(DateTime.now().millisecondsSinceEpoch)
+            : const Value.absent(),
         dirty: const Value(true),
       ),
     );
