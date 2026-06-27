@@ -142,15 +142,15 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
    (`dev.librenotes.app`), root README, fastlane metadata, icons regenerated,
    F-Droid dependency audit clean.
 7. **F-Droid submission** — DONE: screenshots added, build recipe written, MR
-   submitted to `fdroid/fdroiddata` (MR #41300). Repo public on GitHub, tagged
-   `v1.0.1`.
+   submitted to `fdroid/fdroiddata` (MR #41300). Repo public on GitHub. Current
+   release: `v1.1.0`.
 8. **UI polish + color picker** — DONE: note color picker implemented; mobile
    UI has had a first polish pass but still needs more work.
 9. **Linux distribution** — DONE: AppImage + tarball (attached to GitHub release
-   v1.0.1), AUR (`librenotes-bin`) live, Flatpak manifest repo at
+   v1.1.0), AUR (`librenotes-bin`) live, Flatpak manifest repo at
    `github.com/Piliii/dev.librenotes.app` (manual install only — not submitted to
    Flathub; Flathub bans AI-assisted code and this project does not qualify).
-   Packaging script: `scripts/package-linux.sh`.
+   Packaging scripts: `scripts/package-linux.sh`, `scripts/package-server.sh`.
 10. **Marketing website** — DONE: Next.js + Tailwind static export in `website/`.
     Sections: hero, Android screenshots, features, live demo (React/localStorage),
     download, server setup (3-step), footer. Deployed to Vercel + Cloudflare at
