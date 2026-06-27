@@ -12,6 +12,16 @@ class SyncException implements Exception {
   String toString() => 'SyncException($status): $body';
 }
 
+/// Thrown when the server reports an API version the client doesn't support.
+class VersionMismatchException implements Exception {
+  final int serverVersion;
+  final int clientVersion;
+  const VersionMismatchException(this.serverVersion, this.clientVersion);
+  @override
+  String toString() =>
+      'VersionMismatchException(server=$serverVersion, client=$clientVersion)';
+}
+
 /// Typed HTTP client for the Notally sync server. Mirrors the server routes;
 /// 409s are surfaced as a [PushResult] with [PushStatus.conflict], not thrown.
 class SyncApi {
@@ -23,10 +33,20 @@ class SyncApi {
   final String token;
   final http.Client _client;
 
+  static const int _apiVersion = 1;
+
   Map<String, String> get _headers => {
         'authorization': 'Bearer $token',
         'content-type': 'application/json',
       };
+
+  /// Hits /health and throws [VersionMismatchException] if the server reports
+  /// an API version this client doesn't support. No-ops against old servers
+  /// that don't send the version header yet.
+  Future<void> checkApiVersion() async {
+    final r = await _client.get(Uri.parse('$baseUrl/health'));
+    _checkVersion(r);
+  }
 
   Future<bool> health() async {
     final r = await _client.get(Uri.parse('$baseUrl/health'));
@@ -38,6 +58,7 @@ class SyncApi {
       Uri.parse('$baseUrl/changes?since=$since'),
       headers: _headers,
     );
+    _checkVersion(r);
     _ensure2xx(r);
     return ChangesResponse.fromJson(_decode(r));
   }
@@ -92,5 +113,15 @@ class SyncApi {
 
   void _ensure2xx(http.Response r) {
     if (r.statusCode ~/ 100 != 2) throw SyncException(r.statusCode, r.body);
+  }
+
+  void _checkVersion(http.Response r) {
+    final v = r.headers['x-librenotes-api-version'];
+    if (v == null) return; // old server without the header — tolerate gracefully
+    final serverVersion = int.tryParse(v);
+    if (serverVersion == null) return;
+    if (serverVersion > _apiVersion) {
+      throw VersionMismatchException(serverVersion, _apiVersion);
+    }
   }
 }

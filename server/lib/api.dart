@@ -6,6 +6,8 @@ import 'package:shelf_router/shelf_router.dart';
 
 import 'db.dart';
 
+const _apiVersion = 1;
+
 /// Builds the Notally HTTP API. [token] gates every route except `/health`.
 Handler buildApi(NotesDb db, String token) {
   final router = Router();
@@ -78,10 +80,24 @@ Handler buildApi(NotesDb db, String token) {
   });
 
   final handler = const Pipeline()
+      .addMiddleware(_versionMiddleware())
       .addMiddleware(_authMiddleware(token))
       .addHandler(router.call);
 
   return handler;
+}
+
+/// Stamps every response with the server's API version so clients can detect
+/// incompatible version mismatches and show a human-readable error.
+Middleware _versionMiddleware() {
+  return (Handler inner) {
+    return (Request req) async {
+      final response = await inner(req);
+      return response.change(headers: {
+        'x-librenotes-api-version': '$_apiVersion',
+      });
+    };
+  };
 }
 
 /// Requires `Authorization: Bearer <token>` on every route except `/health`.

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
 import 'package:notally_server/api.dart';
@@ -10,6 +11,7 @@ import 'package:notally_server/db.dart';
 
 import 'package:librenotes/data/database.dart';
 import 'package:librenotes/data/notes_repository.dart';
+import 'package:librenotes/sync/sync_api.dart';
 import 'package:librenotes/sync/sync_service.dart';
 
 /// End-to-end sync test. Boots the *real* shelf server in-process (SQLite
@@ -124,6 +126,63 @@ void main() {
     final resolved = await dev2.repo.getNote(id);
     expect(resolved!.body, 'from dev1'); // server (dev1) version won
     expect(resolved.dirty, isFalse);
+  });
+
+  group('version mismatch', () {
+    // Helper: start a shelf server that wraps the real API but stamps every
+    // response with a controllable version header.
+    Future<(HttpServer, String)> spoofedServer(String Function() version) async {
+      final srv = await shelf_io.serve(
+        const Pipeline()
+            .addMiddleware((inner) => (req) async {
+                  final resp = await inner(req);
+                  return resp.change(
+                      headers: {'x-librenotes-api-version': version()});
+                })
+            .addHandler(buildApi(serverDb, token)),
+        'localhost',
+        0,
+      );
+      return (srv, 'http://localhost:${srv.port}');
+    }
+
+    test('version mismatch on connect sets error state and rethrows', () async {
+      final (srv, url) = await spoofedServer(() => '2');
+      addTearDown(() async => srv.close(force: true));
+
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      final repo = NotesRepository(db);
+      final sync = SyncService(repo);
+      addTearDown(() async {
+        sync.dispose();
+        await db.close();
+      });
+
+      await sync.init();
+      await expectLater(
+        sync.connect(baseUrl: url, token: token, passphrase: passphrase),
+        throwsA(isA<VersionMismatchException>()),
+      );
+      expect(sync.status.value.state, SyncState.error);
+      expect(sync.status.value.message, contains('Server API v2'));
+    });
+
+    test('version mismatch discovered mid-session sets error state', () async {
+      var ver = '1'; // start at 1 so the initial connect succeeds
+      final (srv, url) = await spoofedServer(() => ver);
+      addTearDown(() async => srv.close(force: true));
+
+      final dev = await _Device.connect(url, token, passphrase);
+      addTearDown(() async => dev.dispose());
+      expect(dev.sync.status.value.state, SyncState.ok);
+
+      // Simulate the server being upgraded to a newer API.
+      ver = '2';
+      await dev.sync.syncNow();
+
+      expect(dev.sync.status.value.state, SyncState.error);
+      expect(dev.sync.status.value.message, contains('Server API v2'));
+    });
   });
 
   test('a delete on one device propagates as a tombstone to the other',

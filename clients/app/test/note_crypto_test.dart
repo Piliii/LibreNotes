@@ -31,6 +31,25 @@ void main() {
     expect(dec['body'], 'across devices');
   });
 
+  test('fromDek re-creates a working crypto from extracted DEK bytes', () async {
+    final setup = await NoteCrypto.create('passphrase', params: fast);
+    final payload = {'title': 'Secret', 'body': 'keyring path'};
+    final enc = await setup.crypto.encrypt(payload);
+
+    // Simulate what the keyring does: extract raw bytes, store them, restore.
+    final dekBytes = await setup.crypto.extractDekBytes();
+    final restored = NoteCrypto.fromDek(dekBytes);
+
+    // The restored instance must decrypt what the original encrypted.
+    final dec = await restored.decrypt(enc.ciphertext, enc.nonce);
+    expect(dec, payload);
+
+    // And vice-versa: the original must decrypt what the restored encrypted.
+    final enc2 = await restored.encrypt({'body': 'round-trip'});
+    final dec2 = await setup.crypto.decrypt(enc2.ciphertext, enc2.nonce);
+    expect(dec2['body'], 'round-trip');
+  });
+
   test('wrong passphrase fails to unlock', () async {
     final setup = await NoteCrypto.create('right', params: fast);
     expect(

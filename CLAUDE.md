@@ -122,7 +122,7 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
   `clients/app/fastlane/metadata/android/en-US/`, build recipe in
   `metadata/dev.librenotes.app.yml`, MR open at
   `https://gitlab.com/fdroid/fdroiddata/-/merge_requests/41300`.
-  Repo is public at `https://github.com/Piliii/LibreNotes`, tagged `v1.0.1`.
+  Repo is public at `https://github.com/Piliii/LibreNotes`, tagged `v1.2.0`.
 
 ## Status / roadmap
 
@@ -143,43 +143,38 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
    F-Droid dependency audit clean.
 7. **F-Droid submission** — DONE: screenshots added, build recipe written, MR
    submitted to `fdroid/fdroiddata` (MR #41300). Repo public on GitHub. Current
-   release: `v1.1.0`.
+   release: `v1.2.0`.
 8. **UI polish + color picker** — DONE: note color picker implemented; mobile
    UI has had a first polish pass but still needs more work.
 9. **Linux distribution** — DONE: AppImage + tarball (attached to GitHub release
-   v1.1.0), AUR (`librenotes-bin`) live, Flatpak manifest repo at
-   `github.com/Piliii/dev.librenotes.app` (manual install only — not submitted to
-   Flathub; Flathub bans AI-assisted code and this project does not qualify).
+   v1.2.0), AUR (`librenotes-bin`) live. Flatpak dropped (not worth maintaining).
    Packaging scripts: `scripts/package-linux.sh`, `scripts/package-server.sh`.
 10. **Marketing website** — DONE: Next.js + Tailwind static export in `website/`.
     Sections: hero, Android screenshots, features, live demo (React/localStorage),
-    download, server setup (3-step), footer. Deployed to Vercel + Cloudflare at
-    `https://librenotes.ayopili.com`. Short redirects via `website/vercel.json`
-    (`/dl/server`, `/dl/apk`, `/github`). Bunny Fonts, lucide-react + simple-icons,
+    download, server setup (3-step Binary + Docker tabs with copy buttons), footer.
+    Deployed to Vercel + Cloudflare at `https://librenotes.ayopili.com`. Short
+    redirects via `website/vercel.json` (`/dl/server`, `/dl/apk`, `/github`,
+    `/dl/docker-compose`). Bunny Fonts, lucide-react + simple-icons,
     react-markdown + remark-gfm + react-syntax-highlighter in the live demo.
-11. **TODO — remaining before "good to go":**
-    - **Docker server distribution**: add `server/Dockerfile` (debian-slim base,
-      copy compiled binary, expose port 7070, volume for `/data`), a
-      `docker-compose.yml` at repo root, and a GitHub Actions workflow that builds
-      and pushes to GHCR (`ghcr.io/piliii/librenotes-server`) on every release tag.
-      Update the website server setup section to show Docker as an alternative to
-      the binary install. Image should be tiny (~20 MB on debian-slim).
+11. **Sync infrastructure** — DONE: Docker server image on GHCR
+    (`server/Dockerfile`, `docker-compose.yml`, `.github/workflows/docker.yml`).
+    Seamless re-unlock via platform keyring (`flutter_secure_storage`,
+    `NoteCrypto.fromDek`, auto-unlock in `SyncService.init`). Version mismatch
+    detection (`X-Librenotes-Api-Version` header, `VersionMismatchException`).
+    Release automation (`.github/workflows/release.yml`: APK + AppImage/tarball +
+    server tarball on tag push, GitHub release, AUR auto-updated).
+12. **KDE Wayland** — DONE: `my_application.cc` uses `XDG_CURRENT_DESKTOP` to
+    detect GNOME vs other DEs; KDE and others get server-side decorations (no
+    double header bar). Ctrl+Q and Ctrl+W quit the app via `CallbackShortcuts`
+    in `main.dart`.
+13. **TODO — remaining before "good to go":**
     - **Linux .deb/.rpm packages**: add `fpm` to `scripts/package-linux.sh` to
       produce `.deb` (Debian/Ubuntu) and `.rpm` (Fedora/openSUSE) from the same
       Flutter bundle. Install to `/opt/librenotes/` + wrapper at `/usr/bin/librenotes`,
       desktop entry, icon, appdata in standard XDG paths. Distribute via GitHub
       releases alongside AppImage + tarball. Dependency: `gtk3`/`libgtk-3-0`.
-    - **Seamless re-unlock via platform keyring**: after first passphrase entry,
-      store the unwrapped DEK in `flutter_secure_storage` (Android Keystore /
-      iOS Keychain / Linux GNOME Keyring). On subsequent app restarts, retrieve
-      it silently so the user isn't prompted for their passphrase again on a
-      trusted device. Fall back to passphrase if the keyring is unavailable or
-      cleared. This is how Bitwarden handles vault key caching.
     - **UI polish** (mobile still needs more work).
-    - **Wayland + multi-DE support**: verify the Linux desktop build runs correctly under Wayland (GTK backend), GNOME, KDE, and other compositors. Add `--ozone-platform=wayland` launch flag to the `.desktop` file or wrapper as appropriate.
-    - **Version mismatch handling**: gracefully handle mismatched API versions between client and server (e.g. a version header on responses, a human-readable error when the client is too old).
     - Server optional WebSocket push (instead of polling every 10s).
-    - **Flathub**: not pursuing — policy bans AI-assisted code.
 
 ## Conventions
 

@@ -29,6 +29,13 @@ class NoteCrypto {
 
   final SecretKey _dek;
 
+  /// Reconstruct from raw DEK bytes (e.g. retrieved from the platform keyring).
+  static NoteCrypto fromDek(List<int> dekBytes) =>
+      NoteCrypto._(SecretKey(dekBytes));
+
+  /// Expose the raw DEK bytes so the keyring can persist them.
+  Future<List<int>> extractDekBytes() => _dek.extractBytes();
+
   static final _aead = Xchacha20.poly1305Aead();
   static const _nonceLen = 24; // XChaCha20 nonce
   static const _macLen = 16; // Poly1305 tag

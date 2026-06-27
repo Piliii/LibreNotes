@@ -1,0 +1,5 @@
+- Seamless unlock: after pairing once, the app re-opens without asking for your passphrase again (uses the platform keyring)
+- Docker: official server image on GHCR — one curl + docker compose up and you're running
+- Version mismatch detection: the app warns you if the server needs an update
+- KDE Wayland: fixed oversized title bar; Ctrl+Q and Ctrl+W now quit the app
+- Linux AppImage, tarball, and AUR package (librenotes-bin) via GitHub releases
