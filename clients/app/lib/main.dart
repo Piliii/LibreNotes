@@ -1,4 +1,8 @@
+import 'dart:io' show Platform, exit;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'data/database.dart';
 import 'data/notes_repository.dart';
@@ -27,7 +31,20 @@ class NotallyApp extends StatelessWidget {
       title: 'Notally',
       debugShowCheckedModeBanner: false,
       theme: buildNotallyTheme(),
-      home: HomeScreen(repo: repo, sync: sync),
+      home: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.keyQ, control: true): _quit,
+          const SingleActivator(LogicalKeyboardKey.keyW, control: true): _quit,
+        },
+        child: Focus(
+          autofocus: true,
+          child: HomeScreen(repo: repo, sync: sync),
+        ),
+      ),
     );
+  }
+
+  static void _quit() {
+    if (!kIsWeb && Platform.isLinux) exit(0);
   }
 }

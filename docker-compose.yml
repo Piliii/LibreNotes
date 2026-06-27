@@ -1,0 +1,14 @@
+services:
+  librenotes-server:
+    image: ghcr.io/piliii/librenotes-server:latest
+    ports:
+      - "8787:8787"
+    volumes:
+      - librenotes-data:/data
+    environment:
+      NOTALLY_PORT: "8787"
+      # NOTALLY_TOKEN: ""  # set a fixed token; auto-generated and persisted if unset
+    restart: unless-stopped
+
+volumes:
+  librenotes-data:

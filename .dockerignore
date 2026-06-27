@@ -1,0 +1,16 @@
+# Only server/ and packages/notally_core/ are needed for the Docker build.
+clients/
+website/
+dist/
+aur/
+flatpak/
+metadata/
+scripts/
+assets/
+server/data/
+server/.dart_tool/
+packages/notally_core/.dart_tool/
+**/.git/
+**/node_modules/
+*.sqlite
+*.db

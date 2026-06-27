@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:cryptography/cryptography.dart' show SecretBoxAuthenticationError;
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:notally_core/notally_core.dart';
 
 import '../data/database.dart';
@@ -76,16 +77,59 @@ class SyncService {
   static const _kMem = 'ks.mem';
   static const _kIter = 'ks.iter';
   static const _kPar = 'ks.par';
+  static const _kRawDek = 'ks.rawDek'; // platform keyring (secure storage)
 
   bool get isUnlocked => _crypto != null;
 
   /// Called at startup: figure out whether we're configured and/or unlocked.
+  /// If the platform keyring holds the DEK, silently auto-unlocks and starts
+  /// syncing without prompting the user for their passphrase.
   Future<void> init() async {
     final configured = await _repo.kvGet(_kBaseUrl) != null &&
         await _repo.kvGet(_kWrapped) != null;
-    status.value = SyncStatus(
-      configured ? SyncState.locked : SyncState.notConfigured,
-    );
+    if (!configured) {
+      status.value = const SyncStatus(SyncState.notConfigured);
+      return;
+    }
+    final autoUnlocked = await _tryAutoUnlock();
+    if (!autoUnlocked) {
+      status.value = const SyncStatus(SyncState.locked);
+    }
+  }
+
+  /// Tries to read the raw DEK from the platform keyring. On success, skips
+  /// the Argon2id derivation entirely and goes straight to syncing.
+  Future<bool> _tryAutoUnlock() async {
+    try {
+      const storage = FlutterSecureStorage();
+      final rawDek = await storage.read(key: _kRawDek);
+      if (rawDek == null) return false;
+      final baseUrl = await _repo.kvGet(_kBaseUrl);
+      final token = await _repo.kvGet(_kToken);
+      if (baseUrl == null || token == null) return false;
+      _crypto = NoteCrypto.fromDek(base64Decode(rawDek));
+      _api = SyncApi(baseUrl: baseUrl, token: token);
+      await syncNow();
+      _startAuto();
+      return true;
+    } catch (_) {
+      // Keyring unavailable or cleared — fall back to passphrase prompt.
+      _crypto = null;
+      _api = null;
+      return false;
+    }
+  }
+
+  /// Saves the raw DEK to the platform keyring so future app restarts can
+  /// auto-unlock without prompting for the passphrase.
+  Future<void> _saveDekToKeyring(NoteCrypto crypto) async {
+    try {
+      final dekBytes = await crypto.extractDekBytes();
+      await const FlutterSecureStorage()
+          .write(key: _kRawDek, value: base64Encode(dekBytes));
+    } catch (_) {
+      // Keyring unavailable — no-op; user will be prompted next restart.
+    }
   }
 
   Future<String?> get savedBaseUrl => _repo.kvGet(_kBaseUrl);
@@ -126,6 +170,7 @@ class SyncService {
     status.value = const SyncStatus(SyncState.syncing, message: 'Connecting…');
     final api = SyncApi(baseUrl: baseUrl, token: token);
     try {
+      await api.checkApiVersion();
       var ks = await api.getKeystore();
       NoteCrypto crypto;
       if (ks == null) {
@@ -156,6 +201,7 @@ class SyncService {
       await _persist(baseUrl, token, ks);
       _api = api;
       _crypto = crypto;
+      unawaited(_saveDekToKeyring(crypto));
       await syncNow();
       _startAuto();
     } catch (e) {
@@ -183,6 +229,7 @@ class SyncService {
       ),
     );
     _api = SyncApi(baseUrl: baseUrl, token: token);
+    unawaited(_saveDekToKeyring(_crypto!));
     await syncNow();
     _startAuto();
   }
@@ -275,6 +322,8 @@ class SyncService {
             : '${conflicts.value.length} conflict(s) to resolve',
         lastSyncedAt: DateTime.now(),
       );
+    } on VersionMismatchException catch (e) {
+      status.value = SyncStatus(SyncState.error, message: _human(e));
     } on SyncException catch (e) {
       status.value = SyncStatus(SyncState.error, message: _human(e));
     } catch (e) {
@@ -458,6 +507,9 @@ class SyncService {
 
   String _human(Object e) {
     if (e is SecretBoxAuthenticationError) return 'Wrong passphrase';
+    if (e is VersionMismatchException) {
+      return 'Server API v${e.serverVersion} requires a newer version of LibreNotes. Please update the app.';
+    }
     final s = e.toString();
     return s.length > 140 ? '${s.substring(0, 140)}…' : s;
   }

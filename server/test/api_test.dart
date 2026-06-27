@@ -126,6 +126,38 @@ void main() {
     });
   });
 
+  group('version header', () {
+    test('X-Librenotes-Api-Version: 1 is present on /health', () async {
+      final r = await http.get(u('/health'));
+      expect(r.headers['x-librenotes-api-version'], '1');
+    });
+
+    test('version header is present on successful authenticated responses',
+        () async {
+      final r = await http.get(u('/changes?since=0'), headers: auth);
+      expect(r.statusCode, 200);
+      expect(r.headers['x-librenotes-api-version'], '1');
+    });
+
+    test('version header is present on 401 unauthorised responses', () async {
+      final r = await http.get(u('/changes?since=0'));
+      expect(r.statusCode, 401);
+      expect(r.headers['x-librenotes-api-version'], '1');
+    });
+
+    test('version header is present on 404 not-found responses', () async {
+      final r = await http.get(u('/keystore'), headers: auth);
+      expect(r.statusCode, 404);
+      expect(r.headers['x-librenotes-api-version'], '1');
+    });
+
+    test('version header is present on 400 bad-request responses', () async {
+      final r = await http.put(u('/notes/n1'), headers: auth, body: 'bad json');
+      expect(r.statusCode, 400);
+      expect(r.headers['x-librenotes-api-version'], '1');
+    });
+  });
+
   group('keystore', () {
     test('is 404 before anything is uploaded', () async {
       final r = await http.get(u('/keystore'), headers: auth);
