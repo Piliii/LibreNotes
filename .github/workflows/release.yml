@@ -141,10 +141,14 @@ jobs:
             -e "s/^sha256sums_x86_64=.*/sha256sums_x86_64=('${SHA256}')/" \
             aur/PKGBUILD > /tmp/aur/PKGBUILD
 
-          # makepkg refuses to run as root — use a throwaway builder user
+          # makepkg refuses to run as root — run it in a separate dir so
+          # /tmp/aur stays root-owned and git operations succeed.
           useradd -m builder
-          chown -R builder:builder /tmp/aur
-          runuser -u builder -- bash -c "cd /tmp/aur && makepkg --printsrcinfo > .SRCINFO"
+          mkdir -p /tmp/makepkg-build
+          cp /tmp/aur/PKGBUILD /tmp/makepkg-build/
+          chown -R builder:builder /tmp/makepkg-build
+          runuser -u builder -- bash -c "cd /tmp/makepkg-build && makepkg --printsrcinfo > .SRCINFO"
+          cp /tmp/makepkg-build/.SRCINFO /tmp/aur/.SRCINFO
 
           git -C /tmp/aur config user.name "Piliii"
           git -C /tmp/aur config user.email "naifmohsenaziz@gmail.com"
