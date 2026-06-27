@@ -61,6 +61,7 @@ code change. Never expose the server to the WAN.
 ```
 LibreNotes/
 ├── assets/icon/             Source app icon (librenotes.jpg)
+├── metadata/                F-Droid build recipe (dev.librenotes.app.yml) for fdroiddata PR.
 ├── packages/notally_core/   Shared Dart models + sync DTOs (app + server).
 │                            Dependency-free & crypto-free on purpose.
 │   └── lib/src/             encrypted_note.dart, note.dart, sync.dart
@@ -117,10 +118,11 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
   The `INTERNET` permission is declared in the *main* manifest (not just debug),
   or release sync silently fails. Release still uses the debug signing config —
   F-Droid re-signs, so fine for F-Droid; set a real keystore for direct APKs.
-- **F-Droid status:** fastlane metadata is written
-  (`clients/app/fastlane/metadata/android/en-US/`). Still needed before
-  submission: screenshots in `fastlane/metadata/android/en-US/images/phoneScreenshots/`,
-  the repo must be public, and a build recipe must be submitted to `fdroiddata`.
+- **F-Droid status:** submitted. Fastlane metadata + screenshots in
+  `clients/app/fastlane/metadata/android/en-US/`, build recipe in
+  `metadata/dev.librenotes.app.yml`, MR open at
+  `https://gitlab.com/fdroid/fdroiddata/-/merge_requests/41300`.
+  Repo is public at `https://github.com/Piliii/LibreNotes`, tagged `v1.0.1`.
 
 ## Status / roadmap
 
@@ -139,15 +141,45 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
 6. **Rename + GitHub/F-Droid prep** — DONE: app renamed to LibreNotes
    (`dev.librenotes.app`), root README, fastlane metadata, icons regenerated,
    F-Droid dependency audit clean.
-7. **TODO — remaining before "good to go":**
-   - **UI polish** (mobile especially needs another pass), note color picker.
-   - **F-Droid submission**: add phone screenshots to fastlane metadata, make
-     repo public, open a PR to `fdroiddata` (or self-host via `fdroidserver`).
-   - **Linux distribution**: package the client for Linux — AppImage and/or
-     distro repos (pacman/AUR, apt/deb, dnf/rpm).
-   - **Server distribution**: downloadable bundle (`dart compile exe` binary +
-     systemd unit + backup script; AUR/deb/rpm or install-script tarball).
-   - Server deploy to the home box (systemd + sqlite backups); optional WebSocket push.
+7. **F-Droid submission** — DONE: screenshots added, build recipe written, MR
+   submitted to `fdroid/fdroiddata` (MR #41300). Repo public on GitHub, tagged
+   `v1.0.1`.
+8. **UI polish + color picker** — DONE: note color picker implemented; mobile
+   UI has had a first polish pass but still needs more work.
+9. **Linux distribution** — DONE: AppImage + tarball (attached to GitHub release
+   v1.0.1), AUR (`librenotes-bin`) live, Flatpak manifest repo at
+   `github.com/Piliii/dev.librenotes.app` (manual install only — not submitted to
+   Flathub; Flathub bans AI-assisted code and this project does not qualify).
+   Packaging script: `scripts/package-linux.sh`.
+10. **Marketing website** — DONE: Next.js + Tailwind static export in `website/`.
+    Sections: hero, Android screenshots, features, live demo (React/localStorage),
+    download, server setup (3-step), footer. Deployed to Vercel + Cloudflare at
+    `https://librenotes.ayopili.com`. Short redirects via `website/vercel.json`
+    (`/dl/server`, `/dl/apk`, `/github`). Bunny Fonts, lucide-react + simple-icons,
+    react-markdown + remark-gfm + react-syntax-highlighter in the live demo.
+11. **TODO — remaining before "good to go":**
+    - **Docker server distribution**: add `server/Dockerfile` (debian-slim base,
+      copy compiled binary, expose port 7070, volume for `/data`), a
+      `docker-compose.yml` at repo root, and a GitHub Actions workflow that builds
+      and pushes to GHCR (`ghcr.io/piliii/librenotes-server`) on every release tag.
+      Update the website server setup section to show Docker as an alternative to
+      the binary install. Image should be tiny (~20 MB on debian-slim).
+    - **Linux .deb/.rpm packages**: add `fpm` to `scripts/package-linux.sh` to
+      produce `.deb` (Debian/Ubuntu) and `.rpm` (Fedora/openSUSE) from the same
+      Flutter bundle. Install to `/opt/librenotes/` + wrapper at `/usr/bin/librenotes`,
+      desktop entry, icon, appdata in standard XDG paths. Distribute via GitHub
+      releases alongside AppImage + tarball. Dependency: `gtk3`/`libgtk-3-0`.
+    - **Seamless re-unlock via platform keyring**: after first passphrase entry,
+      store the unwrapped DEK in `flutter_secure_storage` (Android Keystore /
+      iOS Keychain / Linux GNOME Keyring). On subsequent app restarts, retrieve
+      it silently so the user isn't prompted for their passphrase again on a
+      trusted device. Fall back to passphrase if the keyring is unavailable or
+      cleared. This is how Bitwarden handles vault key caching.
+    - **UI polish** (mobile still needs more work).
+    - **Wayland + multi-DE support**: verify the Linux desktop build runs correctly under Wayland (GTK backend), GNOME, KDE, and other compositors. Add `--ozone-platform=wayland` launch flag to the `.desktop` file or wrapper as appropriate.
+    - **Version mismatch handling**: gracefully handle mismatched API versions between client and server (e.g. a version header on responses, a human-readable error when the client is too old).
+    - Server optional WebSocket push (instead of polling every 10s).
+    - **Flathub**: not pursuing — policy bans AI-assisted code.
 
 ## Conventions
 

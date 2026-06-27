@@ -1,0 +1,19 @@
+{
+  "redirects": [
+    {
+      "source": "/dl/server",
+      "destination": "https://github.com/Piliii/LibreNotes/releases/latest",
+      "permanent": false
+    },
+    {
+      "source": "/dl/apk",
+      "destination": "https://github.com/Piliii/LibreNotes/releases/latest",
+      "permanent": false
+    },
+    {
+      "source": "/github",
+      "destination": "https://github.com/Piliii/LibreNotes",
+      "permanent": false
+    }
+  ]
+}
