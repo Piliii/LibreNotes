@@ -15,7 +15,7 @@ class SyncSettingsPage extends StatefulWidget {
 }
 
 class _SyncSettingsPageState extends State<SyncSettingsPage> {
-  final _url = TextEditingController(text: 'http://192.168.100.164:8787');
+  final _url = TextEditingController();
   final _token = TextEditingController();
   final _pass = TextEditingController();
   bool _busy = false;

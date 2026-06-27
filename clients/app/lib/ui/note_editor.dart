@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/database.dart';
 import '../data/notes_repository.dart';
@@ -17,6 +18,7 @@ class NoteEditor extends StatefulWidget {
     required this.noteId,
     this.onDeleted,
     this.onEdited,
+    this.autoFocus = false,
   });
 
   final NotesRepository repo;
@@ -27,6 +29,9 @@ class NoteEditor extends StatefulWidget {
   /// instead of waiting for the next poll.
   final VoidCallback? onEdited;
 
+  /// If true, focuses the body text field once the note finishes loading.
+  final bool autoFocus;
+
   @override
   State<NoteEditor> createState() => _NoteEditorState();
 }
@@ -34,18 +39,15 @@ class NoteEditor extends StatefulWidget {
 class _NoteEditorState extends State<NoteEditor> {
   final _titleCtrl = TextEditingController();
   final _bodyCtrl = TextEditingController();
+  final _bodyFocus = FocusNode();
   StreamSubscription<NoteRow?>? _sub;
   Timer? _debounce;
   bool _loading = true;
   bool _preview = false;
   bool _pinned = false;
-  // Guards the controller listeners while we apply incoming (remote) content,
-  // so adopting a synced change doesn't look like a local edit.
+  String _color = '#2a2a2a';
   bool _applying = false;
-  // The last values we persisted. We only write when the controllers actually
-  // diverge from these, so merely opening/closing a note never marks it dirty
-  // or bumps its updatedAt (which would corrupt sort order and spawn phantom
-  // conflicts).
+  bool _didAutoFocus = false;
   String _savedTitle = '';
   String _savedBody = '';
   NoteRow? _note;
@@ -62,17 +64,21 @@ class _NoteEditorState extends State<NoteEditor> {
   void didUpdateWidget(NoteEditor old) {
     super.didUpdateWidget(old);
     if (old.noteId != widget.noteId) {
-      // Persist any pending edits to the note we're leaving before rebinding.
-      if (!_loading &&
-          (_titleCtrl.text != _savedTitle || _bodyCtrl.text != _savedBody)) {
-        widget.repo.updateContent(
-          old.noteId,
-          title: _titleCtrl.text,
-          body: _bodyCtrl.text,
-        );
-        widget.onEdited?.call();
-      }
       _debounce?.cancel();
+      if (!_loading) {
+        if (_titleCtrl.text.isEmpty && _bodyCtrl.text.isEmpty) {
+          // No text ever written — discard the note silently.
+          widget.repo.purge(old.noteId);
+        } else if (_titleCtrl.text != _savedTitle ||
+            _bodyCtrl.text != _savedBody) {
+          widget.repo.updateContent(
+            old.noteId,
+            title: _titleCtrl.text,
+            body: _bodyCtrl.text,
+          );
+          widget.onEdited?.call();
+        }
+      }
       _preview = false;
       _subscribe();
     }
@@ -92,13 +98,13 @@ class _NoteEditorState extends State<NoteEditor> {
       if (!_loading) widget.onDeleted?.call();
       return;
     }
-    // Don't clobber in-progress typing; only adopt remote content when the
-    // editor has no unsaved local edits.
+    final wasLoading = _loading;
     final hasLocalEdits = !_loading &&
         (_titleCtrl.text != _savedTitle || _bodyCtrl.text != _savedBody);
     setState(() {
       _note = note;
       _pinned = note.pinned;
+      _color = note.color;
       if (!hasLocalEdits) {
         _applying = true;
         if (_titleCtrl.text != note.title) _titleCtrl.text = note.title;
@@ -109,6 +115,12 @@ class _NoteEditorState extends State<NoteEditor> {
       }
       _loading = false;
     });
+    if (wasLoading && widget.autoFocus && !_didAutoFocus) {
+      _didAutoFocus = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _bodyFocus.requestFocus();
+      });
+    }
   }
 
   void _onChanged() {
@@ -128,6 +140,17 @@ class _NoteEditorState extends State<NoteEditor> {
       title: _savedTitle,
       body: _savedBody,
     );
+    widget.onEdited?.call();
+  }
+
+  Future<void> _pickColor() async {
+    final hex = await showDialog<String>(
+      context: context,
+      builder: (_) => NoteColorPickerDialog(current: _color),
+    );
+    if (hex == null || hex == _color) return;
+    setState(() => _color = hex);
+    await widget.repo.updateContent(widget.noteId, color: hex);
     widget.onEdited?.call();
   }
 
@@ -168,9 +191,15 @@ class _NoteEditorState extends State<NoteEditor> {
 
   @override
   void dispose() {
-    _flush();
-    _sub?.cancel();
     _debounce?.cancel();
+    _sub?.cancel();
+    _bodyFocus.dispose();
+    if (!_loading && _titleCtrl.text.isEmpty && _bodyCtrl.text.isEmpty) {
+      // No text ever written — discard the note silently.
+      widget.repo.purge(widget.noteId);
+    } else {
+      _flush();
+    }
     _titleCtrl.dispose();
     _bodyCtrl.dispose();
     super.dispose();
@@ -178,36 +207,43 @@ class _NoteEditorState extends State<NoteEditor> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: NotallyColors.accent),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(30, 16, 30, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _toolbar(),
-          const SizedBox(height: 4),
-          TextField(
-            controller: _titleCtrl,
-            style: const TextStyle(
-              color: NotallyColors.textBright,
-              fontSize: 28,
-              fontWeight: FontWeight.w600,
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 150),
+      child: _loading
+          ? const Center(
+              key: ValueKey('loading'),
+              child: CircularProgressIndicator(color: NotallyColors.accent),
+            )
+          : AnimatedContainer(
+              key: const ValueKey('editor'),
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOut,
+              color: colorFromHex(_color),
+              padding: const EdgeInsets.fromLTRB(30, 16, 30, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _toolbar(),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: _titleCtrl,
+                    style: const TextStyle(
+                      color: NotallyColors.textBright,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      hintText: 'Title',
+                      hintStyle: TextStyle(color: NotallyColors.textFaint),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(child: _preview ? _previewBody() : _editBody()),
+                ],
+              ),
             ),
-            decoration: const InputDecoration(
-              isDense: true,
-              border: InputBorder.none,
-              hintText: 'Title',
-              hintStyle: TextStyle(color: NotallyColors.textFaint),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(child: _preview ? _previewBody() : _editBody()),
-        ],
-      ),
     );
   }
 
@@ -228,6 +264,11 @@ class _NoteEditorState extends State<NoteEditor> {
           onTap: _togglePin,
         ),
         _ToolButton(
+          icon: Icons.colorize,
+          tooltip: 'Note color',
+          onTap: _pickColor,
+        ),
+        _ToolButton(
           icon: _preview ? Icons.edit_outlined : Icons.visibility_outlined,
           tooltip: _preview ? 'Edit' : 'Preview',
           active: _preview,
@@ -245,6 +286,7 @@ class _NoteEditorState extends State<NoteEditor> {
   Widget _editBody() {
     return TextField(
       controller: _bodyCtrl,
+      focusNode: _bodyFocus,
       expands: true,
       maxLines: null,
       textAlignVertical: TextAlignVertical.top,
@@ -271,6 +313,11 @@ class _NoteEditorState extends State<NoteEditor> {
       data: text,
       padding: EdgeInsets.zero,
       styleSheet: notallyMarkdownStyle(),
+      onTapLink: (_, href, __) async {
+        if (href == null) return;
+        final uri = Uri.tryParse(href);
+        if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
+      },
     );
   }
 
@@ -311,6 +358,8 @@ class _ToolButton extends StatelessWidget {
 }
 
 /// Full-screen editor for the mobile layout.
+/// Streams the note's color so the scaffold background updates live when the
+/// user changes it from the toolbar color picker.
 class NoteEditorPage extends StatelessWidget {
   const NoteEditorPage({
     super.key,
@@ -325,21 +374,75 @@ class NoteEditorPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: NotallyColors.background,
-      appBar: AppBar(
-        backgroundColor: NotallyColors.background,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        iconTheme: const IconThemeData(color: NotallyColors.textPrimary),
+    return StreamBuilder<NoteRow?>(
+      stream: repo.watchNote(noteId),
+      builder: (context, snap) {
+        final bg = colorFromHex(snap.data?.color ?? '#2a2a2a');
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOut,
+          color: bg,
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            appBar: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              iconTheme: const IconThemeData(color: NotallyColors.textPrimary),
+            ),
+            body: SafeArea(
+              child: NoteEditor(
+                repo: repo,
+                noteId: noteId,
+                onEdited: onEdited,
+                onDeleted: () => Navigator.of(context).maybePop(),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class NoteColorPickerDialog extends StatelessWidget {
+  const NoteColorPickerDialog({super.key, required this.current});
+
+  final String current;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: NotallyColors.surface,
+      title: const Text(
+        'Note color',
+        style: TextStyle(color: NotallyColors.textBright, fontSize: 16),
       ),
-      body: SafeArea(
-        child: NoteEditor(
-          repo: repo,
-          noteId: noteId,
-          onEdited: onEdited,
-          onDeleted: () => Navigator.of(context).maybePop(),
-        ),
+      content: Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: kNoteColorHexes.map((hex) {
+          final selected = hex == current;
+          return GestureDetector(
+            onTap: () => Navigator.pop(context, hex),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: colorFromHex(hex),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? NotallyColors.accent : NotallyColors.border,
+                  width: selected ? 3 : 1.5,
+                ),
+              ),
+              child: selected
+                  ? const Icon(Icons.check,
+                      color: NotallyColors.accent, size: 20)
+                  : null,
+            ),
+          );
+        }).toList(),
       ),
     );
   }

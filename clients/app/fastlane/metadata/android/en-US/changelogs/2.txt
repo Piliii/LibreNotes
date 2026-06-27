@@ -1,0 +1,4 @@
+- Note color picker
+- Mobile UI improvements
+- Linux: AUR package (librenotes-bin), Flatpak manifest, AppImage and tarball packaging
+- Marketing website at librenotes.ayopili.com
