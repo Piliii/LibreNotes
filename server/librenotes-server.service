@@ -1,0 +1,28 @@
+[Unit]
+Description=LibreNotes sync server
+After=network.target
+
+[Service]
+Type=simple
+User=librenotes
+Group=librenotes
+ExecStart=/opt/librenotes-server/librenotes-server
+Restart=on-failure
+RestartSec=5
+WorkingDirectory=/opt/librenotes-server
+
+# Data directory — override any of these in /etc/librenotes-server/env
+Environment=NOTALLY_DATA=/var/lib/librenotes
+Environment=NOTALLY_HOST=0.0.0.0
+Environment=NOTALLY_PORT=8787
+Environment=LD_LIBRARY_PATH=/opt/librenotes-server/lib
+EnvironmentFile=-/etc/librenotes-server/env
+
+# Harden the service
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/librenotes
+
+[Install]
+WantedBy=multi-user.target
