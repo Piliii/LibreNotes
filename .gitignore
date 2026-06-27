@@ -1,3 +1,17 @@
+# Packaging output and downloaded tools
+dist/
+.tools/
+
+# Website (Next.js)
+website/.next/
+website/out/
+website/node_modules/
+
+# AUR build artifacts
+aur/*.tar.gz
+aur/*.tar.xz
+aur/*.zst
+
 # Dart / Flutter
 .dart_tool/
 .packages
