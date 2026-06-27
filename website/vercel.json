@@ -14,6 +14,11 @@
       "source": "/github",
       "destination": "https://github.com/Piliii/LibreNotes",
       "permanent": false
+    },
+    {
+      "source": "/dl/docker-compose",
+      "destination": "https://raw.githubusercontent.com/Piliii/LibreNotes/main/docker-compose.yml",
+      "permanent": false
     }
   ]
 }
