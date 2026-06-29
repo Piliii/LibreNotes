@@ -31,6 +31,7 @@ class RemoteNote {
   final int rev;
   final int seq;
   final bool deleted;
+  final bool archived;
   const RemoteNote({
     required this.title,
     required this.body,
@@ -41,6 +42,7 @@ class RemoteNote {
     required this.rev,
     required this.seq,
     required this.deleted,
+    this.archived = false,
   });
 }
 
@@ -348,6 +350,7 @@ class SyncService {
       rev: r.rev,
       seq: r.seq,
       deleted: r.deleted,
+      archived: r.archived,
     );
     final lastSeq = int.tryParse(await _repo.kvGet(_kSeq) ?? '0') ?? 0;
     if (r.seq > lastSeq) await _repo.kvSet(_kSeq, r.seq.toString());
@@ -418,6 +421,7 @@ class SyncService {
       rev: note.rev,
       seq: note.seq,
       deleted: false,
+      archived: p['archived'] as bool? ?? false,
     );
   }
 
@@ -446,6 +450,7 @@ class SyncService {
       rev: note.rev,
       seq: note.seq,
       deleted: false,
+      archived: p['archived'] as bool? ?? false,
     );
   }
 
@@ -456,6 +461,7 @@ class SyncService {
         'color': n.color,
         'createdAt': n.createdAt,
         'updatedAt': n.updatedAt,
+        'archived': n.archived,
       };
 
   bool _hasConflict(String id) => conflicts.value.any((c) => c.id == id);

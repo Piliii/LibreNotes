@@ -14,7 +14,8 @@ rename those, they're just library identifiers.
   native Android. **No Windows, no Electron** (the owner refuses Electron on
   privacy grounds — don't propose it).
 - **Notes:** markdown text. Desktop = notes list on the left, editor on the
-  right. Mobile = 2-up grid of cards (title + truncated preview ending in "…").
+  right. Mobile = staggered 2-column masonry grid of cards (body preview only
+  when no title; title + body when title exists, variable height).
 - **Design DNA** (from the original prototype): dark theme (`#1a1a1a` /
   `#242424`), **orange accent `#ff6900`**, resizable sidebar, ~500 ms debounced
   autosave, local cache for instant load.
@@ -42,7 +43,9 @@ A global changelog plus per-note revisions:
 The server only ever stores ciphertext.
 
 - A random 256-bit **DEK** encrypts each note payload (`{title, body, pinned,
-  color, createdAt}`) with a per-write nonce (AEAD, XChaCha20-Poly1305).
+  color, createdAt, archived}`) with a per-write nonce (AEAD, XChaCha20-Poly1305).
+  The `archived` field lives entirely in the ciphertext — the server never sees
+  archive state.
 - The DEK is **wrapped** by a key derived from the user's passphrase via
   **Argon2id** (`salt` + KDF params). The wrapped DEK + salt/params live in the
   server `keystore`; the server never sees any key. A new device only needs the
@@ -60,7 +63,7 @@ code change. Never expose the server to the WAN.
 
 ```
 LibreNotes/
-├── assets/icon/             Source app icon (librenotes.jpg)
+├── assets/icon/             Source app icon (librenotes.jpg — squircle PNG, 457×457)
 ├── metadata/                F-Droid build recipe (dev.librenotes.app.yml) for fdroiddata PR.
 ├── packages/notally_core/   Shared Dart models + sync DTOs (app + server).
 │                            Dependency-free & crypto-free on purpose.
@@ -76,7 +79,7 @@ LibreNotes/
     ├── lib/sync/            sync_service.dart (pull/push loop), sync_api.dart,
     │                        note_crypto.dart (Argon2id + XChaCha20-Poly1305, client-only).
     ├── lib/ui/              home_screen, note_editor, conflicts_page, sync_settings_page,
-    │                        trash_page.dart.
+    │                        archive_page.dart, trash_page.dart.
     ├── fastlane/            F-Droid metadata (title, description, changelogs).
     └── test/                sync_e2e (real in-process server), note_editor regression, etc.
 ```
@@ -144,8 +147,13 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
 7. **F-Droid submission** — DONE: screenshots added, build recipe written, MR
    submitted to `fdroid/fdroiddata` (MR #41300). Repo public on GitHub. Current
    release: `v1.2.0`.
-8. **UI polish + color picker** — DONE: note color picker implemented; mobile
-   UI has had a first polish pass but still needs more work.
+8. **UI polish + color picker** — DONE: note color picker implemented. Mobile
+   UI fully polished: staggered masonry grid, swipe-to-archive, pull-to-refresh,
+   pinned/notes section headers, animated search header, frosted-glass bottom
+   sheet with inline color picker, skeuomorphic card styling (gradient +
+   multi-layer shadows). Desktop polished: gradient+shadow sidebar list items,
+   pinned/notes section headers, better empty-editor state. Timestamps now show
+   "Dec 1" / "Dec 1 2024" format; markdown link artifacts stripped from previews.
 9. **Linux distribution** — DONE: AppImage + tarball (attached to GitHub release
    v1.2.0), AUR (`librenotes-bin`) live. Flatpak dropped (not worth maintaining).
    Packaging scripts: `scripts/package-linux.sh`, `scripts/package-server.sh`.
@@ -165,16 +173,59 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
     server tarball on tag push, GitHub release, AUR auto-updated).
 12. **KDE Wayland** — DONE: `my_application.cc` uses `XDG_CURRENT_DESKTOP` to
     detect GNOME vs other DEs; KDE and others get server-side decorations (no
-    double header bar). Ctrl+Q and Ctrl+W quit the app via `CallbackShortcuts`
-    in `main.dart`.
-13. **TODO — remaining before "good to go":**
+    double header bar). Ctrl+Q and Ctrl+W quit the app via a `HardwareKeyboard`
+    global handler in `main.dart` (not `CallbackShortcuts` — that gets blocked
+    by focused TextFields handling Ctrl+W as "delete word").
+13. **Note search** — DONE: client-side substring search over title + body.
+    Desktop: always-visible field in sidebar (orange focus border, X to clear).
+    Mobile: search icon → animated header takeover. No-results empty states on
+    both platforms. Section headers suppressed during search.
+14. **Icons + branding** — DONE: all platform icons (Android mipmaps, web PWA,
+    favicon) replaced with the squircle PNG. `MaterialApp.title` corrected to
+    `'LibreNotes'` (was `'Notally'`).
+15. **Desktop multi-select** — DONE: Ctrl+Click toggles notes in/out of a
+    selection set; Shift+Click range-selects from the last clicked note.
+    Selected items show an accent checkmark and tinted background. A bulk-action
+    bar appears at the bottom of the sidebar (Archive / Pin / Unpin) and the
+    editor area switches to a `_MultiSelectPanel` when 2+ notes are selected.
+16. **Archive** — DONE: notes can be archived instead of deleted. `archived` is
+    a bool column in the local DB (schema v4) and part of the encrypted payload,
+    so archive state syncs across devices without the server ever seeing it.
+    Primary removal action throughout the UI (swipe, context menu, editor
+    toolbar) is now **Archive** rather than Trash. `ArchivePage` lists archived
+    notes with Restore / Move-to-Trash per note; Trash is accessible from inside
+    the archive page. Trash page + permanent-delete flow unchanged.
+17. **Title-less cards** — DONE: when a note has no title, mobile cards show
+    only the body preview (9 lines) with no "Untitled" label. Desktop sidebar
+    items show the body text as the primary (italic) text and skip the secondary
+    preview line. Desktop tab labels use the body text (italic) as a fallback.
+18. **TODO — remaining before "good to go":**
     - **Linux .deb/.rpm packages**: add `fpm` to `scripts/package-linux.sh` to
       produce `.deb` (Debian/Ubuntu) and `.rpm` (Fedora/openSUSE) from the same
       Flutter bundle. Install to `/opt/librenotes/` + wrapper at `/usr/bin/librenotes`,
       desktop entry, icon, appdata in standard XDG paths. Distribute via GitHub
       releases alongside AppImage + tarball. Dependency: `gtk3`/`libgtk-3-0`.
-    - **UI polish** (mobile still needs more work).
-    - Server optional WebSocket push (instead of polling every 10s).
+    - **Server optional WebSocket push** (instead of polling every 10s).
+    - **awesome-selfhosted submission**: submit a PR to
+      `awesome-selfhosted/awesome-selfhosted` to list LibreNotes under the
+      Notes/Notebooks category. This is one of the highest-value visibility
+      actions for a self-hosted project — the list drives organic traffic, stars,
+      and the right audience. Write the PR yourself (no AI); it's a one-liner
+      entry in a markdown file.
+    - **Open source project hygiene** *(do this once there are actual users —
+      premature before the community exists):* add the standard files that signal
+      a mature, welcoming project to contributors and stores like Flathub:
+        - `CONTRIBUTING.md` — how to report bugs, request features, submit PRs.
+        - `SECURITY.md` — where/how to report security vulnerabilities privately
+          (e.g. GitHub private security advisories).
+        - `CODE_OF_CONDUCT.md` — standard Contributor Covenant boilerplate.
+        - GitHub issue templates (`.github/ISSUE_TEMPLATE/`) — bug report and
+          feature request forms to keep the tracker tidy.
+        - `CHANGELOG.md` at repo root — human-readable release history (not just
+          fastlane changelogs).
+        - Enable GitHub Discussions — gives users a place to ask questions and
+          share setups, which generates the "community engagement" signal that
+          Flathub's mature-project exception looks for.
 
 ## Conventions
 

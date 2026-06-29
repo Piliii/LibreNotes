@@ -29,6 +29,11 @@ class Notes extends Table {
   /// every local write, cleared once the push is accepted.
   BoolColumn get dirty => boolean().withDefault(const Constant(true))();
 
+  /// True when the user has archived this note. Archived notes are hidden from
+  /// the main list but not deleted. Part of the encrypted payload so it syncs
+  /// across devices; the server never sees it.
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -49,7 +54,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -63,6 +68,10 @@ class AppDatabase extends _$AppDatabase {
           // v2 → v3: purged flag for propagating permanent trash deletes.
           if (from < 3) {
             await m.addColumn(notes, notes.purged);
+          }
+          // v3 → v4: archived flag (client-side, part of encrypted payload).
+          if (from < 4) {
+            await m.addColumn(notes, notes.archived);
           }
         },
       );

@@ -11,17 +11,48 @@ class NotesRepository {
   final AppDatabase _db;
   static const _uuid = Uuid();
 
-  /// Live list of non-deleted notes: pinned first, then most recently edited.
-  /// Drift re-emits automatically whenever the table changes.
+  /// Live list of non-deleted, non-archived notes: pinned first, then most
+  /// recently edited. Drift re-emits automatically whenever the table changes.
   Stream<List<NoteRow>> watchNotes() {
     return (_db.select(_db.notes)
-          ..where((t) => t.deleted.equals(false))
+          ..where((t) => t.deleted.equals(false) & t.archived.equals(false))
           ..orderBy([
             (t) => OrderingTerm(expression: t.pinned, mode: OrderingMode.desc),
             (t) =>
                 OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
           ]))
         .watch();
+  }
+
+  /// Live list of archived notes, most recently edited first.
+  Stream<List<NoteRow>> watchArchive() {
+    return (_db.select(_db.notes)
+          ..where((t) => t.archived.equals(true) & t.deleted.equals(false))
+          ..orderBy([
+            (t) =>
+                OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
+          ]))
+        .watch();
+  }
+
+  /// Moves a note to the archive. Reversible via [unarchiveNote].
+  Future<void> archiveNote(String id) {
+    return (_db.update(_db.notes)..where((t) => t.id.equals(id))).write(
+      const NotesCompanion(
+        archived: Value(true),
+        dirty: Value(true),
+      ),
+    );
+  }
+
+  /// Restores a note from the archive back to the main list.
+  Future<void> unarchiveNote(String id) {
+    return (_db.update(_db.notes)..where((t) => t.id.equals(id))).write(
+      const NotesCompanion(
+        archived: Value(false),
+        dirty: Value(true),
+      ),
+    );
   }
 
   Stream<NoteRow?> watchNote(String id) {
@@ -183,6 +214,7 @@ class NotesRepository {
     required int rev,
     required int seq,
     required bool deleted,
+    bool archived = false,
   }) {
     return _db.into(_db.notes).insertOnConflictUpdate(
           NotesCompanion.insert(
@@ -196,6 +228,7 @@ class NotesRepository {
             rev: Value(rev),
             seq: Value(seq),
             deleted: Value(deleted),
+            archived: Value(archived),
             dirty: const Value(false),
           ),
         );
