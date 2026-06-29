@@ -23,7 +23,7 @@ void main() {
 
     test('older than a week falls back to an absolute date', () {
       final then = DateTime(2024, 1, 5);
-      expect(relativeTime(then.millisecondsSinceEpoch), '2024-01-05');
+      expect(relativeTime(then.millisecondsSinceEpoch), 'Jan 5 2024');
     });
   });
 

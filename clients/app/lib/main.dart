@@ -19,32 +19,50 @@ Future<void> main() async {
   runApp(NotallyApp(repo: repo, sync: sync));
 }
 
-class NotallyApp extends StatelessWidget {
+class NotallyApp extends StatefulWidget {
   const NotallyApp({super.key, required this.repo, required this.sync});
 
   final NotesRepository repo;
   final SyncService sync;
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Notally',
-      debugShowCheckedModeBanner: false,
-      theme: buildNotallyTheme(),
-      home: CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.keyQ, control: true): _quit,
-          const SingleActivator(LogicalKeyboardKey.keyW, control: true): _quit,
-        },
-        child: Focus(
-          autofocus: true,
-          child: HomeScreen(repo: repo, sync: sync),
-        ),
-      ),
-    );
+  State<NotallyApp> createState() => _NotallyAppState();
+}
+
+class _NotallyAppState extends State<NotallyApp> {
+  @override
+  void initState() {
+    super.initState();
+    if (!kIsWeb && Platform.isLinux) {
+      HardwareKeyboard.instance.addHandler(_handleKey);
+    }
   }
 
-  static void _quit() {
-    if (!kIsWeb && Platform.isLinux) exit(0);
+  @override
+  void dispose() {
+    if (!kIsWeb && Platform.isLinux) {
+      HardwareKeyboard.instance.removeHandler(_handleKey);
+    }
+    super.dispose();
+  }
+
+  bool _handleKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (!HardwareKeyboard.instance.isControlPressed) return false;
+    if (event.logicalKey == LogicalKeyboardKey.keyQ ||
+        event.logicalKey == LogicalKeyboardKey.keyW) {
+      exit(0);
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'LibreNotes',
+      debugShowCheckedModeBanner: false,
+      theme: buildNotallyTheme(),
+      home: HomeScreen(repo: widget.repo, sync: widget.sync),
+    );
   }
 }

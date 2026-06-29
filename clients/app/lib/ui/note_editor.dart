@@ -161,27 +161,15 @@ class _NoteEditorState extends State<NoteEditor> {
     widget.onEdited?.call();
   }
 
-  Future<void> _delete() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: NotallyColors.surface,
-        title: const Text('Move to trash?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel',
-                style: TextStyle(color: NotallyColors.textMuted)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Move to trash',
-                style: TextStyle(color: NotallyColors.accent)),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
+  Future<void> _archive() async {
+    _debounce?.cancel();
+    _loading = true;
+    await widget.repo.archiveNote(widget.noteId);
+    widget.onEdited?.call();
+    widget.onDeleted?.call();
+  }
+
+  Future<void> _trash() async {
     _debounce?.cancel();
     _loading = true;
     await widget.repo.deleteNote(widget.noteId);
@@ -275,9 +263,14 @@ class _NoteEditorState extends State<NoteEditor> {
           onTap: () => setState(() => _preview = !_preview),
         ),
         _ToolButton(
+          icon: Icons.archive_outlined,
+          tooltip: 'Archive',
+          onTap: _archive,
+        ),
+        _ToolButton(
           icon: Icons.delete_outline,
-          tooltip: 'Move to trash',
-          onTap: _delete,
+          tooltip: 'Move to Trash',
+          onTap: _trash,
         ),
       ],
     );
