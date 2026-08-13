@@ -151,7 +151,7 @@ jobs:
           cp /tmp/makepkg-build/.SRCINFO /tmp/aur/.SRCINFO
 
           git -C /tmp/aur config user.name "Piliii"
-          git -C /tmp/aur config user.email "naifmohsenaziz@gmail.com"
+          git -C /tmp/aur config user.email "developer@ayopili.com"
           git -C /tmp/aur add PKGBUILD .SRCINFO
           git -C /tmp/aur commit -m "Update to v${VERSION}"
           git -C /tmp/aur push
