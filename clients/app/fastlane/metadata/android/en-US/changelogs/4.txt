@@ -1,0 +1,3 @@
+- Fixed Ctrl+W being wired to quit on Linux, which conflicted with GTK's "delete word" text field shortcut
+- Fixed sidebar note titles being bolded even when falling back to body text on title-less notes
+- Fixed a list item key bug that could cause note state to mix up during reordering
