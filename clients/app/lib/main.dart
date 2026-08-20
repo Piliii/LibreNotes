@@ -49,8 +49,10 @@ class _NotallyAppState extends State<NotallyApp> {
   bool _handleKey(KeyEvent event) {
     if (event is! KeyDownEvent) return false;
     if (!HardwareKeyboard.instance.isControlPressed) return false;
-    if (event.logicalKey == LogicalKeyboardKey.keyQ ||
-        event.logicalKey == LogicalKeyboardKey.keyW) {
+    // Ctrl+W is intentionally omitted: GTK consumes it at the IME level for
+    // "delete word" in TextFields, so Flutter only sees the orphaned KeyUp
+    // event and emits keyboard-state warnings. Ctrl+Q is the quit shortcut.
+    if (event.logicalKey == LogicalKeyboardKey.keyQ) {
       exit(0);
     }
     return false;

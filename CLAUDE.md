@@ -121,11 +121,17 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
   The `INTERNET` permission is declared in the *main* manifest (not just debug),
   or release sync silently fails. Release still uses the debug signing config —
   F-Droid re-signs, so fine for F-Droid; set a real keystore for direct APKs.
-- **F-Droid status:** submitted. Fastlane metadata + screenshots in
-  `clients/app/fastlane/metadata/android/en-US/`, build recipe in
-  `metadata/dev.librenotes.app.yml`, MR open at
-  `https://gitlab.com/fdroid/fdroiddata/-/merge_requests/41300`.
-  Repo is public at `https://github.com/Piliii/LibreNotes`, tagged `v1.2.0`.
+- **F-Droid status:** LIVE. App is published in the official F-Droid repo at
+  `https://f-droid.org/packages/dev.librenotes.app/` — installable via the
+  F-Droid client, no manual APK download needed. Fastlane metadata +
+  screenshots in `clients/app/fastlane/metadata/android/en-US/`, build recipe
+  in `metadata/dev.librenotes.app.yml`. Got here via MR
+  `https://gitlab.com/fdroid/fdroiddata/-/merge_requests/41300`, merged into
+  `fdroiddata` master (squashed as `4935c52e`) by maintainer `linsui`, then
+  built + signed by F-Droid's build server. Repo is public at
+  `https://github.com/Piliii/LibreNotes`, tagged `v1.2.0`. Future releases
+  need a version bump + tag; F-Droid's server picks up new tags automatically
+  and rebuilds (no new MR needed unless the build recipe itself changes).
 
 ## Status / roadmap
 
@@ -144,9 +150,11 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
 6. **Rename + GitHub/F-Droid prep** — DONE: app renamed to LibreNotes
    (`dev.librenotes.app`), root README, fastlane metadata, icons regenerated,
    F-Droid dependency audit clean.
-7. **F-Droid submission** — DONE: screenshots added, build recipe written, MR
-   submitted to `fdroid/fdroiddata` (MR #41300). Repo public on GitHub. Current
-   release: `v1.2.0`.
+7. **F-Droid submission** — DONE, fully live: screenshots added, build recipe
+   written, MR submitted to `fdroid/fdroiddata` (MR #41300), merged by
+   maintainer `linsui`, and the app is now published at
+   `https://f-droid.org/packages/dev.librenotes.app/`. Repo public on GitHub.
+   Current release: `v1.2.0`.
 8. **UI polish + color picker** — DONE: note color picker implemented. Mobile
    UI fully polished: staggered masonry grid, swipe-to-archive, pull-to-refresh,
    pinned/notes section headers, animated search header, frosted-glass bottom
@@ -173,9 +181,10 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
     server tarball on tag push, GitHub release, AUR auto-updated).
 12. **KDE Wayland** — DONE: `my_application.cc` uses `XDG_CURRENT_DESKTOP` to
     detect GNOME vs other DEs; KDE and others get server-side decorations (no
-    double header bar). Ctrl+Q and Ctrl+W quit the app via a `HardwareKeyboard`
-    global handler in `main.dart` (not `CallbackShortcuts` — that gets blocked
-    by focused TextFields handling Ctrl+W as "delete word").
+    double header bar). Ctrl+Q quits the app via a `HardwareKeyboard` global
+    handler in `main.dart`. Ctrl+W is intentionally NOT wired to quit — on
+    Linux/GTK it is consumed at the IME level for "delete word" in TextFields,
+    which causes orphaned `KeyUpEvent` warnings from Flutter's key-state tracker.
 13. **Note search** — DONE: client-side substring search over title + body.
     Desktop: always-visible field in sidebar (orange focus border, X to clear).
     Mobile: search icon → animated header takeover. No-results empty states on
@@ -197,8 +206,9 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
     the archive page. Trash page + permanent-delete flow unchanged.
 17. **Title-less cards** — DONE: when a note has no title, mobile cards show
     only the body preview (9 lines) with no "Untitled" label. Desktop sidebar
-    items show the body text as the primary (italic) text and skip the secondary
-    preview line. Desktop tab labels use the body text (italic) as a fallback.
+    items show the body text as the primary text (normal weight, not italic)
+    and skip the secondary preview line. Desktop tab labels use the body text
+    as a fallback.
 18. **TODO — remaining before "good to go":**
     - **Linux .deb/.rpm packages**: add `fpm` to `scripts/package-linux.sh` to
       produce `.deb` (Debian/Ubuntu) and `.rpm` (Fedora/openSUSE) from the same

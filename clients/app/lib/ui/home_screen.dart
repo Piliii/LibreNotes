@@ -534,6 +534,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   for (final note in items)
                     Padding(
+                      key: ValueKey(note.id),
                       padding: const EdgeInsets.only(bottom: 14),
                       child: Dismissible(
                         key: ValueKey('d-${note.id}'),
@@ -1131,7 +1132,8 @@ class _NoteListItem extends StatelessWidget {
                                     : NotallyColors.textBright
                                         .withValues(alpha: 0.92),
                                 fontSize: 14,
-                                fontWeight: active
+                                // Only bold titles, not body-as-fallback text.
+                                fontWeight: (active && note.title.isNotEmpty)
                                     ? FontWeight.w600
                                     : FontWeight.normal,
                               ),
