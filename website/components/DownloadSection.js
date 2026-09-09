@@ -1,10 +1,9 @@
 import { Download, Package, ArrowRight, Info } from 'lucide-react';
-import { siLinux, siArchlinux, siAndroid, siFdroid, siFlatpak, siGithub } from 'simple-icons';
+import { siLinux, siArchlinux, siAndroid, siFdroid, siGithub } from 'simple-icons';
 import BrandIcon from './BrandIcon';
 
 const GH_RELEASE = 'https://github.com/Piliii/LibreNotes/releases/latest';
-const FLATPAK_REPO = 'https://github.com/Piliii/dev.librenotes.app';
-const FDROID_MR = 'https://gitlab.com/fdroid/fdroiddata/-/merge_requests/41300';
+const FDROID_URL = 'https://f-droid.org/en/packages/dev.librenotes.app/';
 const AUR_URL = 'https://aur.archlinux.org/packages/librenotes-bin';
 
 const LINUX_OPTIONS = [
@@ -25,12 +24,6 @@ const LINUX_OPTIONS = [
     description: 'Arch Linux and Arch-based distros.',
     href: AUR_URL,
     icon: <BrandIcon icon={siArchlinux} size={20} />,
-  },
-  {
-    label: 'Flatpak',
-    description: 'Manual install from the manifest repo.',
-    href: FLATPAK_REPO,
-    icon: <BrandIcon icon={siFlatpak} size={20} />,
   },
 ];
 
@@ -114,10 +107,9 @@ export default function DownloadSection() {
             <SectionLabel icon={<BrandIcon icon={siAndroid} size={16} />}>Android</SectionLabel>
             <div className="space-y-3">
               <DownloadCard
-                href={FDROID_MR}
-                badge="Pending review"
+                href={FDROID_URL}
                 label="F-Droid"
-                description="FOSS-only Android app store. MR #41300 submitted, listing coming soon."
+                description="FOSS-only Android app store. Available in the official repo."
                 icon={<BrandIcon icon={siFdroid} size={20} />}
               />
               <DownloadCard

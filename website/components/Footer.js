@@ -3,7 +3,7 @@ import BrandIcon from './BrandIcon';
 
 const LINKS = [
   { label: 'GitHub', href: 'https://github.com/Piliii/LibreNotes', external: true },
-  { label: 'F-Droid MR', href: 'https://gitlab.com/fdroid/fdroiddata/-/merge_requests/41300', external: true },
+  { label: 'F-Droid', href: 'https://f-droid.org/en/packages/dev.librenotes.app/', external: true },
   { label: 'AGPLv3 license', href: 'https://github.com/Piliii/LibreNotes/blob/main/LICENSE', external: true },
 ];
 
@@ -41,7 +41,7 @@ export default function Footer() {
                 <BrandIcon icon={siGithub} size={16} />
               </a>
               <a
-                href="https://gitlab.com/fdroid/fdroiddata/-/merge_requests/41300"
+                href="https://f-droid.org/en/packages/dev.librenotes.app/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="transition-colors hover:text-[#ff6900]"
