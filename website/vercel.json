@@ -19,6 +19,11 @@
       "source": "/dl/docker-compose",
       "destination": "https://raw.githubusercontent.com/Piliii/LibreNotes/main/docker-compose.yml",
       "permanent": false
+    },
+    {
+      "source": "/dl/fdroid",
+      "destination": "https://f-droid.org/en/packages/dev.librenotes.app/",
+      "permanent": false
     }
   ]
 }

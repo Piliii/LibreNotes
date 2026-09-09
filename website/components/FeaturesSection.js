@@ -19,7 +19,7 @@ const FEATURES = [
   {
     Icon: ShieldCheck,
     title: "Free and open source",
-    body: "Licensed AGPLv3. Read the code, audit it, self-host it, fork it. No paywalls, no telemetry, no lock-in. Available on F-Droid, AUR, and Flatpak.",
+    body: "Licensed AGPLv3. Read the code, audit it, self-host it, fork it. No paywalls, no telemetry, no lock-in. Available on F-Droid and AUR.",
   },
 ];
 
