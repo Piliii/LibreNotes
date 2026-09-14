@@ -209,33 +209,143 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
     items show the body text as the primary text (normal weight, not italic)
     and skip the secondary preview line. Desktop tab labels use the body text
     as a fallback.
-18. **TODO — remaining before "good to go":**
+18. **Open source project hygiene** — DONE: `CONTRIBUTING.md`, `SECURITY.md`
+    (points to GitHub private security advisories), `CODE_OF_CONDUCT.md`
+    (Contributor Covenant 2.1), `.github/ISSUE_TEMPLATE/` (bug report + feature
+    request forms, plus a `config.yml` disabling blank issues and linking to
+    security advisories/discussions), and a root `CHANGELOG.md` seeded from
+    the real tag history (v1.0.1 → v1.2.1). **Still needs a manual step:**
+    enable GitHub Discussions in repo settings (Settings → Features) — the
+    issue template config links to it.
+19. **v1.3.0: self-destruct timers + quick capture** — DONE:
+    - **Self-destructing notes**: optional per-note TTL set from the editor
+      toolbar (hourglass icon → 1h/1d/7d/30d/off). Stored as a nullable
+      `expiresAt` (schema v5) that's part of the encrypted payload like
+      `archived`, so the timer syncs across devices. `NotesRepository`
+      runs a client-side sweep (`sweepExpiredNotes`, every 60s +
+      once at startup) that tombstones expired notes through the exact same
+      soft-delete path as a manual trash delete.
+    - **Linux global hotkey quick-capture**: Ctrl+Alt+N (via `hotkey_manager`
+      + `window_manager`, `lib/desktop/quick_capture.dart`) shrinks the app
+      window to a small floating box, focuses a text field, and creates a note
+      on Enter (Esc discards) — then restores the window's exact prior size/
+      position/visibility. Requires the `keybinder-3.0` system library
+      (Linux runtime dep, like `gtk3` for packaging) — `linux/CMakeLists.txt`
+      also suppresses an upstream `-Wsometimes-uninitialized` build failure in
+      `hotkey_manager_linux` 0.2.3 (unmaintained since 2024), same pattern
+      already used there for `flutter_secure_storage_linux`. **Known
+      limitation:** `keybinder-3.0` uses X11's `XGrabKey`, which silently does
+      nothing under a native-Wayland GDK session (GDK's default backend on
+      current GNOME/KDE) — no error surfaced, the shortcut just never fires.
+      A real fix needs the `xdg-desktop-portal` GlobalShortcuts portal
+      instead, a different and compositor-support-dependent integration.
+      Workaround today: launch with `GDK_BACKEND=x11`.
+    - **Android share-sheet integration**: registers LibreNotes as an
+      `ACTION_SEND` (`text/plain`) target. Native side is a small Kotlin
+      method channel in `MainActivity.kt` (`dev.librenotes.app/share`) —
+      `getInitialSharedText` for a cold start launched by a share,
+      `onSharedText` pushed via `onNewIntent` for a share while the app's
+      already running (`singleTop` launch mode). Dart side
+      (`lib/android/share_intent.dart`) creates the note and opens it
+      directly in the editor. Not yet verified against a real Android build —
+      no Android SDK on the dev machine this was built on; verified via
+      `flutter analyze` and manifest/Kotlin review only.
+    - Also fixed in passing: a stale local dev database on this machine had
+      `PRAGMA user_version` stuck at 3 while the `archived` column (schema
+      v4) already existed physically, crash-looping the app on every launch.
+      Not caused by this work, but blocked verifying it — backed up and
+      repaired with `PRAGMA user_version = 4` (metadata-only, no note content
+      touched).
+20. **TODO — remaining before "good to go":**
     - **Linux .deb/.rpm packages**: add `fpm` to `scripts/package-linux.sh` to
       produce `.deb` (Debian/Ubuntu) and `.rpm` (Fedora/openSUSE) from the same
       Flutter bundle. Install to `/opt/librenotes/` + wrapper at `/usr/bin/librenotes`,
       desktop entry, icon, appdata in standard XDG paths. Distribute via GitHub
       releases alongside AppImage + tarball. Dependency: `gtk3`/`libgtk-3-0`.
     - **Server optional WebSocket push** (instead of polling every 10s).
+    - **Global hotkey via `xdg-desktop-portal` on Wayland**: the current
+      quick-capture hotkey (`lib/desktop/quick_capture.dart`, `hotkey_manager`
+      + `keybinder-3.0`) only works under X11/XWayland — `XGrabKey` has no
+      visibility into native-Wayland clients, so on a native-Wayland GNOME/KDE
+      session the shortcut only fires while the app itself already has focus
+      (confirmed: `GDK_BACKEND=x11` silences the binding warning but doesn't
+      restore true global capture, since almost everything else on the
+      session is a native Wayland client outside the X server's view). Fix:
+      implement the `org.freedesktop.portal.GlobalShortcuts` D-Bus portal
+      (CreateSession → BindShortcuts → listen for `Activated`; no ready-made
+      Flutter package, needs a small client via the `dbus` package) as the
+      primary path on Wayland — zero-setup, and covers GNOME (mutter) and KDE
+      Plasma 6 (KWin), the large majority of Wayland desktop users. Keep
+      `keybinder-3.0` for X11 sessions (unaffected by this issue, works
+      today). For Wayland compositors without portal support (Sway, other
+      wlroots-based), gracefully skip the auto-grab rather than silently
+      failing, and surface a one-time in-app note pointing to a manual
+      fallback: expose a D-Bus method (or Unix socket) that triggers
+      quick-capture, which the user binds themselves via their compositor's
+      own custom-shortcut settings. Goal is tiered friction: zero setup for
+      X11 + GNOME/KDE (the majority), manual one-time setup only for the
+      long-tail compositors.
     - **awesome-selfhosted submission**: submit a PR to
       `awesome-selfhosted/awesome-selfhosted` to list LibreNotes under the
       Notes/Notebooks category. This is one of the highest-value visibility
       actions for a self-hosted project — the list drives organic traffic, stars,
       and the right audience. Write the PR yourself (no AI); it's a one-liner
       entry in a markdown file.
-    - **Open source project hygiene** *(do this once there are actual users —
-      premature before the community exists):* add the standard files that signal
-      a mature, welcoming project to contributors and stores like Flathub:
-        - `CONTRIBUTING.md` — how to report bugs, request features, submit PRs.
-        - `SECURITY.md` — where/how to report security vulnerabilities privately
-          (e.g. GitHub private security advisories).
-        - `CODE_OF_CONDUCT.md` — standard Contributor Covenant boilerplate.
-        - GitHub issue templates (`.github/ISSUE_TEMPLATE/`) — bug report and
-          feature request forms to keep the tracker tidy.
-        - `CHANGELOG.md` at repo root — human-readable release history (not just
-          fastlane changelogs).
-        - Enable GitHub Discussions — gives users a place to ask questions and
-          share setups, which generates the "community engagement" signal that
-          Flathub's mature-project exception looks for.
+    - **Local-at-rest encryption**: local notes are currently stored as
+      **plaintext** in the Drift/sqlite table (`title`/`body` are plain
+      `text()` columns) — the DEK today only protects data in transit to the
+      server. Change local storage to ciphertext using the *same* DEK
+      (`note_crypto.dart`'s existing XChaCha20-Poly1305 AEAD): schema bump to
+      store encrypted blobs, `NotesRepository` decrypts on the way out of
+      `watchNotes()`/`watchNote()`/`getNote()` and encrypts on the way into
+      create/update. Consequence: the app needs the DEK resolved (keyring or
+      a passphrase prompt) before showing any note, even offline before first
+      sync — closes the "plaintext sqlite on a lost/stolen device" gap. The
+      import/export feature below is built directly on top of this boundary.
+    - **Markdown import/export as an explicit crypto boundary**: manual,
+      opt-in interop — "Export" decrypts notes on the fly and writes them out
+      as plain `.md` files to a folder the user picks, so notes are never
+      locked to LibreNotes and stay readable elsewhere. "Import" reads `.md`
+      files from other apps and immediately encrypts them into the local
+      at-rest store (see item above) using the same DEK. Decryption/
+      encryption only ever happens at these explicit, user-triggered
+      boundaries — nothing sits in plaintext on disk automatically.
+    - **Backlinks / `[[wiki-links]]` between notes**: let notes reference each
+      other by title (`[[Note Title]]`), resolved and rendered client-side
+      against already-decrypted content — no server or crypto changes needed.
+      Show a "linked mentions" section per note for backlinks. Turns the app
+      from a note pile into a lightweight personal knowledge base.
+    - **Per-note local version history**: `rev` already bumps on every
+      accepted write — persist the last N encrypted snapshots per note
+      locally (Drift) so a note can be time-traveled/undone independently of
+      the trash/archive flow. Purely local, no server involvement.
+    - **Home-screen Android widget**: a widget for quick note creation
+      (and/or showing pinned notes) without opening the app.
+    - **On-device voice-to-text notes**: local speech-to-text (e.g.
+      whisper.cpp/vosk) to transcribe voice memos into notes with zero cloud
+      STT dependency — consistent with the no-Google-services/self-hosted
+      privacy stance.
+    - **Tearable note tabs on desktop**: let a note be dragged out of the main
+      app window into its own separate window (tab-tear-off, like a browser
+      tab), so multiple notes can be viewed/edited side by side on desktop.
+    - **Font selection**: let the user change the font used for note text
+      (editor + rendered preview).
+    - **Text highlighting**: select text and apply a highlight in a choice of
+      colors, similar to the existing note color picker but scoped to a text
+      selection rather than the whole note.
+    - **WYSIWYG formatting mode (alternative to raw markdown)**: today notes
+      are edited as raw markdown text (typing `#`, `-`, etc. by hand). Add a
+      mode where selecting a piece of text surfaces a set of visual actions
+      (heading size, bold, list, etc.) that apply the equivalent markdown
+      under the hood — same underlying format, no need to know markdown
+      syntax to use it.
+    - **Custom note colors (hex picker)**: the existing color picker (item 8)
+      only offers a fixed swatch set. Add a hex color input (on both Android
+      and desktop) so a note can be set to any arbitrary color, not just the
+      presets.
+    - **Gradient note colors**: extend note coloring beyond a single flat
+      color to support a gradient (two or more stops) as the note's
+      background.
 
 ## Conventions
 

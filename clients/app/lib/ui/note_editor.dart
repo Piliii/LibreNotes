@@ -46,6 +46,7 @@ class _NoteEditorState extends State<NoteEditor> {
   bool _preview = false;
   bool _pinned = false;
   String _color = '#2a2a2a';
+  int? _expiresAt;
   bool _applying = false;
   bool _didAutoFocus = false;
   String _savedTitle = '';
@@ -105,6 +106,7 @@ class _NoteEditorState extends State<NoteEditor> {
       _note = note;
       _pinned = note.pinned;
       _color = note.color;
+      _expiresAt = note.expiresAt;
       if (!hasLocalEdits) {
         _applying = true;
         if (_titleCtrl.text != note.title) _titleCtrl.text = note.title;
@@ -151,6 +153,21 @@ class _NoteEditorState extends State<NoteEditor> {
     if (hex == null || hex == _color) return;
     setState(() => _color = hex);
     await widget.repo.updateContent(widget.noteId, color: hex);
+    widget.onEdited?.call();
+  }
+
+  /// [NoteExpiryDialog] pops `null` for "dismissed, no change" and a
+  /// [NoteExpiryResult] with `at == null` for "turn off" — any other
+  /// [NoteExpiryResult] carries the absolute moment the note expires at.
+  Future<void> _pickExpiry() async {
+    final result = await showDialog<NoteExpiryResult>(
+      context: context,
+      builder: (_) => NoteExpiryDialog(current: _expiresAt),
+    );
+    if (result == null) return;
+    final next = result.at?.millisecondsSinceEpoch;
+    setState(() => _expiresAt = next);
+    await widget.repo.setExpiry(widget.noteId, next);
     widget.onEdited?.call();
   }
 
@@ -240,10 +257,26 @@ class _NoteEditorState extends State<NoteEditor> {
       children: [
         Expanded(
           child: Text(
-            _note == null ? 'New note' : 'Edited ${relative(_note!.updatedAt)}',
-            style: const TextStyle(
-                color: NotallyColors.textFaint, fontSize: 13),
+            _note == null
+                ? 'New note'
+                : _expiresAt != null
+                    ? 'Self-destructs ${untilExpiry(_expiresAt!)}'
+                    : 'Edited ${relative(_note!.updatedAt)}',
+            style: TextStyle(
+              color: _expiresAt != null
+                  ? NotallyColors.accent
+                  : NotallyColors.textFaint,
+              fontSize: 13,
+            ),
           ),
+        ),
+        _ToolButton(
+          icon: _expiresAt != null
+              ? Icons.hourglass_bottom
+              : Icons.hourglass_empty,
+          tooltip: _expiresAt != null ? 'Change self-destruct timer' : 'Self-destruct timer',
+          active: _expiresAt != null,
+          onTap: _pickExpiry,
         ),
         _ToolButton(
           icon: _pinned ? Icons.push_pin : Icons.push_pin_outlined,
@@ -322,6 +355,16 @@ class _NoteEditorState extends State<NoteEditor> {
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     return '${d.year}-${two(d.month)}-${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
+  }
+
+  static String untilExpiry(int expiresAtMs) {
+    final diff =
+        DateTime.fromMillisecondsSinceEpoch(expiresAtMs).difference(DateTime.now());
+    if (diff.isNegative) return 'soon';
+    if (diff.inMinutes < 1) return 'in under a minute';
+    if (diff.inMinutes < 60) return 'in ${diff.inMinutes}m';
+    if (diff.inHours < 24) return 'in ${diff.inHours}h';
+    return 'in ${diff.inDays}d';
   }
 }
 
@@ -436,6 +479,104 @@ class NoteColorPickerDialog extends StatelessWidget {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+}
+
+/// Result of [NoteExpiryDialog]: [at] is the absolute moment the note should
+/// self-destruct, or `null` to turn the timer off.
+class NoteExpiryResult {
+  const NoteExpiryResult(this.at);
+
+  final DateTime? at;
+}
+
+/// Lets the user set (or clear) a note's self-destruct timer, either via a
+/// quick preset or by manually picking an exact date and time. Pops `null`
+/// if dismissed without a choice.
+class NoteExpiryDialog extends StatelessWidget {
+  const NoteExpiryDialog({super.key, required this.current});
+
+  final int? current;
+
+  static const _options = [
+    (label: '1 hour', duration: Duration(hours: 1)),
+    (label: '1 day', duration: Duration(days: 1)),
+    (label: '7 days', duration: Duration(days: 7)),
+    (label: '30 days', duration: Duration(days: 30)),
+  ];
+
+  Future<void> _pickCustom(BuildContext context) async {
+    final now = DateTime.now();
+    final currentAt =
+        current != null ? DateTime.fromMillisecondsSinceEpoch(current!) : null;
+    final initialDate =
+        currentAt != null && currentAt.isAfter(now) ? currentAt : now;
+
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 3650)),
+    );
+    if (date == null || !context.mounted) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialDate),
+    );
+    if (time == null || !context.mounted) return;
+
+    final picked = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (!picked.isAfter(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pick a time in the future')),
+      );
+      return;
+    }
+    Navigator.pop(context, NoteExpiryResult(picked));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: NotallyColors.surface,
+      title: const Text(
+        'Self-destruct timer',
+        style: TextStyle(color: NotallyColors.textBright, fontSize: 16),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final o in _options)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(o.label,
+                  style: const TextStyle(color: NotallyColors.textPrimary)),
+              trailing: const Icon(Icons.hourglass_bottom,
+                  color: NotallyColors.textFaint, size: 18),
+              onTap: () => Navigator.pop(
+                  context, NoteExpiryResult(DateTime.now().add(o.duration))),
+            ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Custom date & time…',
+                style: TextStyle(color: NotallyColors.textPrimary)),
+            trailing: const Icon(Icons.edit_calendar,
+                color: NotallyColors.textFaint, size: 18),
+            onTap: () => _pickCustom(context),
+          ),
+          if (current != null)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Turn off',
+                  style: TextStyle(color: NotallyColors.accent)),
+              trailing:
+                  const Icon(Icons.hourglass_disabled, color: NotallyColors.accent, size: 18),
+              onTap: () => Navigator.pop(context, const NoteExpiryResult(null)),
+            ),
+        ],
       ),
     );
   }

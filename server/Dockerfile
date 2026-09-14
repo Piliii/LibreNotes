@@ -16,11 +16,15 @@ FROM debian:bookworm-slim
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libsqlite3-0 && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    SQLITE_LIB="$(find / -xdev -name 'libsqlite3.so.0' 2>/dev/null | head -1)" && \
+    ln -s "$SQLITE_LIB" "$(dirname "$SQLITE_LIB")/libsqlite3.so"
 
 COPY --from=builder /librenotes-server /usr/local/bin/librenotes-server
 
-RUN useradd -r -s /bin/false librenotes
+RUN useradd -r -s /bin/false librenotes && \
+    mkdir -p /data && \
+    chown librenotes:librenotes /data
 
 VOLUME ["/data"]
 EXPOSE 8787

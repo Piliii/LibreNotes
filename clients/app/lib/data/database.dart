@@ -34,6 +34,12 @@ class Notes extends Table {
   /// across devices; the server never sees it.
   BoolColumn get archived => boolean().withDefault(const Constant(false))();
 
+  /// Optional self-destruct timestamp (ms since epoch). Null means the note
+  /// never expires. Part of the encrypted payload so it syncs across devices;
+  /// the server never sees it. Enforced client-side by a periodic sweep that
+  /// tombstones expired notes via the normal delete path.
+  IntColumn get expiresAt => integer().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -54,7 +60,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -72,6 +78,10 @@ class AppDatabase extends _$AppDatabase {
           // v3 → v4: archived flag (client-side, part of encrypted payload).
           if (from < 4) {
             await m.addColumn(notes, notes.archived);
+          }
+          // v4 → v5: optional self-destruct timestamp.
+          if (from < 5) {
+            await m.addColumn(notes, notes.expiresAt);
           }
         },
       );
