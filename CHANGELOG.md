@@ -6,6 +6,8 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-09-14
+
 ### Added
 - Self-destructing notes: optional per-note timer (1h/1d/7d/30d) that
   tombstones the note client-side when it expires, syncing across devices.
@@ -25,6 +27,9 @@ plain semver-ish tags (`vX.Y.Z`).
   `librenotes-data` volume from an earlier image**, it was created with root
   ownership and needs a one-time fix after upgrading:
   `docker compose run --rm --user root librenotes-server chown -R librenotes:librenotes /data`
+- Android: removed an empty `taskAffinity` override on `MainActivity` that,
+  once the share-sheet intent-filter was added, caused the app to open in a
+  second, separate Recents/Overview task instead of reusing the existing one.
 
 ## [1.2.1] — 2026-08-21
 
@@ -74,7 +79,8 @@ Initial public release of LibreNotes: self-hosted sync server, Flutter client
 Argon2id), trash bin with soft-delete tombstones, AGPLv3 license, F-Droid
 build recipe and store screenshots.
 
-[Unreleased]: https://github.com/Piliii/LibreNotes/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/Piliii/LibreNotes/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/Piliii/LibreNotes/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/Piliii/LibreNotes/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/Piliii/LibreNotes/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Piliii/LibreNotes/compare/v1.0.1...v1.1.0
