@@ -1,0 +1,53 @@
+name: Bug report
+description: Something in LibreNotes isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. If this is a **security
+        vulnerability** (e.g. anything touching encryption, auth, or data
+        leakage), please use [private security advisories](https://github.com/Piliii/LibreNotes/security/advisories/new)
+        instead of a public issue.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Android
+        - Linux desktop
+        - Web
+        - Server
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: App version (Settings screen) or server version/commit
+      placeholder: e.g. v1.2.1
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: >
+        Server logs or `flutter run` console output, if relevant.
+        **Redact your bearer token** before pasting.
+      render: shell

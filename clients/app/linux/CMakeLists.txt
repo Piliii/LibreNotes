@@ -82,6 +82,15 @@ if(TARGET flutter_secure_storage_linux_plugin)
     PRIVATE -Wno-deprecated-literal-operator)
 endif()
 
+# hotkey_manager_linux 0.2.3 (unmaintained since 2024) has two genuinely
+# uninitialized locals in hotkey_manager_linux_plugin.cc, triggering
+# -Wsometimes-uninitialized. Suppress it just for that plugin target so
+# -Werror doesn't fail the build.
+if(TARGET hotkey_manager_linux_plugin)
+  target_compile_options(hotkey_manager_linux_plugin
+    PRIVATE -Wno-sometimes-uninitialized)
+endif()
+
 
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build

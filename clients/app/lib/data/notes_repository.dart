@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
@@ -10,6 +12,7 @@ class NotesRepository {
 
   final AppDatabase _db;
   static const _uuid = Uuid();
+  Timer? _expiryTimer;
 
   /// Live list of non-deleted, non-archived notes: pinned first, then most
   /// recently edited. Drift re-emits automatically whenever the table changes.
@@ -101,6 +104,42 @@ class NotesRepository {
         dirty: const Value(true),
       ),
     );
+  }
+
+  /// Sets or clears a note's self-destruct timestamp (ms since epoch; null
+  /// disables it). Enforcement happens client-side via [sweepExpiredNotes].
+  Future<void> setExpiry(String id, int? expiresAt) {
+    return (_db.update(_db.notes)..where((t) => t.id.equals(id))).write(
+      NotesCompanion(
+        expiresAt: Value(expiresAt),
+        dirty: const Value(true),
+      ),
+    );
+  }
+
+  /// Tombstones any non-deleted note whose [Notes.expiresAt] has passed, using
+  /// the same soft-delete path as a manual trash delete so the deletion
+  /// propagates to other devices normally.
+  Future<void> sweepExpiredNotes() async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final expired = await (_db.select(_db.notes)
+          ..where((t) =>
+              t.deleted.equals(false) &
+              t.expiresAt.isNotNull() &
+              t.expiresAt.isSmallerOrEqualValue(now)))
+        .get();
+    for (final note in expired) {
+      await deleteNote(note.id);
+    }
+  }
+
+  /// Starts a periodic client-side check for expired (self-destructing)
+  /// notes: runs once immediately, then every [period]. Call once at app
+  /// startup; the timer lives for the app's lifetime.
+  void startExpirySweep({Duration period = const Duration(minutes: 1)}) {
+    _expiryTimer?.cancel();
+    sweepExpiredNotes();
+    _expiryTimer = Timer.periodic(period, (_) => sweepExpiredNotes());
   }
 
   /// Live list of trashed (soft-deleted) notes, most recently deleted first.
@@ -215,6 +254,7 @@ class NotesRepository {
     required int seq,
     required bool deleted,
     bool archived = false,
+    int? expiresAt,
   }) {
     return _db.into(_db.notes).insertOnConflictUpdate(
           NotesCompanion.insert(
@@ -229,6 +269,7 @@ class NotesRepository {
             seq: Value(seq),
             deleted: Value(deleted),
             archived: Value(archived),
+            expiresAt: Value(expiresAt),
             dirty: const Value(false),
           ),
         );

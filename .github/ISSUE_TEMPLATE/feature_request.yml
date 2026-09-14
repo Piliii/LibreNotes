@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest an idea for LibreNotes
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before requesting, skim [`CLAUDE.md`](https://github.com/Piliii/LibreNotes/blob/main/CLAUDE.md)
+        for the project's design philosophy (offline-first, E2EE, no CRDT
+        auto-merge, LAN-first, no Electron/Windows). Requests that conflict
+        with it are unlikely to be accepted, however good the idea is.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the problem or friction, not just the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other ways to solve this, including workarounds you're using now.

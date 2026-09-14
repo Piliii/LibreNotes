@@ -158,6 +158,17 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteRow> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<int> expiresAt = GeneratedColumn<int>(
+    'expires_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -173,6 +184,7 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteRow> {
     purged,
     dirty,
     archived,
+    expiresAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -267,6 +279,12 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteRow> {
         archived.isAcceptableOrUnknown(data['archived']!, _archivedMeta),
       );
     }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    }
     return context;
   }
 
@@ -328,6 +346,10 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteRow> {
         DriftSqlType.bool,
         data['${effectivePrefix}archived'],
       )!,
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}expires_at'],
+      ),
     );
   }
 
@@ -363,6 +385,12 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
   /// the main list but not deleted. Part of the encrypted payload so it syncs
   /// across devices; the server never sees it.
   final bool archived;
+
+  /// Optional self-destruct timestamp (ms since epoch). Null means the note
+  /// never expires. Part of the encrypted payload so it syncs across devices;
+  /// the server never sees it. Enforced client-side by a periodic sweep that
+  /// tombstones expired notes via the normal delete path.
+  final int? expiresAt;
   const NoteRow({
     required this.id,
     required this.title,
@@ -377,6 +405,7 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
     required this.purged,
     required this.dirty,
     required this.archived,
+    this.expiresAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -394,6 +423,9 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
     map['purged'] = Variable<bool>(purged);
     map['dirty'] = Variable<bool>(dirty);
     map['archived'] = Variable<bool>(archived);
+    if (!nullToAbsent || expiresAt != null) {
+      map['expires_at'] = Variable<int>(expiresAt);
+    }
     return map;
   }
 
@@ -412,6 +444,9 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
       purged: Value(purged),
       dirty: Value(dirty),
       archived: Value(archived),
+      expiresAt: expiresAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expiresAt),
     );
   }
 
@@ -434,6 +469,7 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
       purged: serializer.fromJson<bool>(json['purged']),
       dirty: serializer.fromJson<bool>(json['dirty']),
       archived: serializer.fromJson<bool>(json['archived']),
+      expiresAt: serializer.fromJson<int?>(json['expiresAt']),
     );
   }
   @override
@@ -453,6 +489,7 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
       'purged': serializer.toJson<bool>(purged),
       'dirty': serializer.toJson<bool>(dirty),
       'archived': serializer.toJson<bool>(archived),
+      'expiresAt': serializer.toJson<int?>(expiresAt),
     };
   }
 
@@ -470,6 +507,7 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
     bool? purged,
     bool? dirty,
     bool? archived,
+    Value<int?> expiresAt = const Value.absent(),
   }) => NoteRow(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -484,6 +522,7 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
     purged: purged ?? this.purged,
     dirty: dirty ?? this.dirty,
     archived: archived ?? this.archived,
+    expiresAt: expiresAt.present ? expiresAt.value : this.expiresAt,
   );
   NoteRow copyWithCompanion(NotesCompanion data) {
     return NoteRow(
@@ -500,6 +539,7 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
       purged: data.purged.present ? data.purged.value : this.purged,
       dirty: data.dirty.present ? data.dirty.value : this.dirty,
       archived: data.archived.present ? data.archived.value : this.archived,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
     );
   }
 
@@ -518,7 +558,8 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
           ..write('deleted: $deleted, ')
           ..write('purged: $purged, ')
           ..write('dirty: $dirty, ')
-          ..write('archived: $archived')
+          ..write('archived: $archived, ')
+          ..write('expiresAt: $expiresAt')
           ..write(')'))
         .toString();
   }
@@ -538,6 +579,7 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
     purged,
     dirty,
     archived,
+    expiresAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -555,7 +597,8 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
           other.deleted == this.deleted &&
           other.purged == this.purged &&
           other.dirty == this.dirty &&
-          other.archived == this.archived);
+          other.archived == this.archived &&
+          other.expiresAt == this.expiresAt);
 }
 
 class NotesCompanion extends UpdateCompanion<NoteRow> {
@@ -572,6 +615,7 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
   final Value<bool> purged;
   final Value<bool> dirty;
   final Value<bool> archived;
+  final Value<int?> expiresAt;
   final Value<int> rowid;
   const NotesCompanion({
     this.id = const Value.absent(),
@@ -587,6 +631,7 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
     this.purged = const Value.absent(),
     this.dirty = const Value.absent(),
     this.archived = const Value.absent(),
+    this.expiresAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   NotesCompanion.insert({
@@ -603,6 +648,7 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
     this.purged = const Value.absent(),
     this.dirty = const Value.absent(),
     this.archived = const Value.absent(),
+    this.expiresAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt),
@@ -621,6 +667,7 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
     Expression<bool>? purged,
     Expression<bool>? dirty,
     Expression<bool>? archived,
+    Expression<int>? expiresAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -637,6 +684,7 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
       if (purged != null) 'purged': purged,
       if (dirty != null) 'dirty': dirty,
       if (archived != null) 'archived': archived,
+      if (expiresAt != null) 'expires_at': expiresAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -655,6 +703,7 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
     Value<bool>? purged,
     Value<bool>? dirty,
     Value<bool>? archived,
+    Value<int?>? expiresAt,
     Value<int>? rowid,
   }) {
     return NotesCompanion(
@@ -671,6 +720,7 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
       purged: purged ?? this.purged,
       dirty: dirty ?? this.dirty,
       archived: archived ?? this.archived,
+      expiresAt: expiresAt ?? this.expiresAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -717,6 +767,9 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
     if (archived.present) {
       map['archived'] = Variable<bool>(archived.value);
     }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<int>(expiresAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -739,6 +792,7 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
           ..write('purged: $purged, ')
           ..write('dirty: $dirty, ')
           ..write('archived: $archived, ')
+          ..write('expiresAt: $expiresAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -979,6 +1033,7 @@ typedef $$NotesTableCreateCompanionBuilder =
       Value<bool> purged,
       Value<bool> dirty,
       Value<bool> archived,
+      Value<int?> expiresAt,
       Value<int> rowid,
     });
 typedef $$NotesTableUpdateCompanionBuilder =
@@ -996,6 +1051,7 @@ typedef $$NotesTableUpdateCompanionBuilder =
       Value<bool> purged,
       Value<bool> dirty,
       Value<bool> archived,
+      Value<int?> expiresAt,
       Value<int> rowid,
     });
 
@@ -1069,6 +1125,11 @@ class $$NotesTableFilterComposer extends Composer<_$AppDatabase, $NotesTable> {
 
   ColumnFilters<bool> get archived => $composableBuilder(
     column: $table.archived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1146,6 +1207,11 @@ class $$NotesTableOrderingComposer
     column: $table.archived,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$NotesTableAnnotationComposer
@@ -1195,6 +1261,9 @@ class $$NotesTableAnnotationComposer
 
   GeneratedColumn<bool> get archived =>
       $composableBuilder(column: $table.archived, builder: (column) => column);
+
+  GeneratedColumn<int> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
 }
 
 class $$NotesTableTableManager
@@ -1238,6 +1307,7 @@ class $$NotesTableTableManager
                 Value<bool> purged = const Value.absent(),
                 Value<bool> dirty = const Value.absent(),
                 Value<bool> archived = const Value.absent(),
+                Value<int?> expiresAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NotesCompanion(
                 id: id,
@@ -1253,6 +1323,7 @@ class $$NotesTableTableManager
                 purged: purged,
                 dirty: dirty,
                 archived: archived,
+                expiresAt: expiresAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1270,6 +1341,7 @@ class $$NotesTableTableManager
                 Value<bool> purged = const Value.absent(),
                 Value<bool> dirty = const Value.absent(),
                 Value<bool> archived = const Value.absent(),
+                Value<int?> expiresAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => NotesCompanion.insert(
                 id: id,
@@ -1285,6 +1357,7 @@ class $$NotesTableTableManager
                 purged: purged,
                 dirty: dirty,
                 archived: archived,
+                expiresAt: expiresAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

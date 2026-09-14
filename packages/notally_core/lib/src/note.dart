@@ -14,6 +14,11 @@ class Note {
   int createdAt; // ms since epoch
   int updatedAt; // ms since epoch
 
+  /// Optional self-destruct timestamp (ms since epoch). When set and in the
+  /// past, the client tombstones the note the same way a manual trash delete
+  /// does. Lives in the encrypted payload, like [pinned]/[color]/[archived].
+  int? expiresAt;
+
   // Sync metadata cached from the server.
   int rev;
   int seq;
@@ -27,6 +32,7 @@ class Note {
     this.color = '#2a2a2a',
     required this.createdAt,
     required this.updatedAt,
+    this.expiresAt,
     this.rev = 0,
     this.seq = 0,
     this.deleted = false,
@@ -40,6 +46,7 @@ class Note {
     'pinned': pinned,
     'color': color,
     'createdAt': createdAt,
+    'expiresAt': expiresAt,
   };
 
   factory Note.fromPayload(
@@ -57,6 +64,7 @@ class Note {
     color: p['color'] as String? ?? '#2a2a2a',
     createdAt: p['createdAt'] as int? ?? updatedAt,
     updatedAt: updatedAt,
+    expiresAt: p['expiresAt'] as int?,
     rev: rev,
     seq: seq,
     deleted: deleted,
