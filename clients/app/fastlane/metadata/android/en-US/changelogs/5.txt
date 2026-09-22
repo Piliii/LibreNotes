@@ -1,0 +1,3 @@
+- Self-destructing notes: optional per-note timer (1h/1d/7d/30d) that removes the note when it expires, syncing across devices
+- Linux global hotkey quick-capture (Ctrl+Alt+N): jot a note from anywhere on the desktop without switching focus
+- Android share-sheet integration: share text or a link from any app straight into a new note

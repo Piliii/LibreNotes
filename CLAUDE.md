@@ -154,7 +154,7 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
    written, MR submitted to `fdroid/fdroiddata` (MR #41300), merged by
    maintainer `linsui`, and the app is now published at
    `https://f-droid.org/packages/dev.librenotes.app/`. Repo public on GitHub.
-   Current release: `v1.2.0`.
+   Current release: `v1.4.0`.
 8. **UI polish + color picker** — DONE: note color picker implemented. Mobile
    UI fully polished: staggered masonry grid, swipe-to-archive, pull-to-refresh,
    pinned/notes section headers, animated search header, frosted-glass bottom

@@ -1,0 +1,3 @@
+- Local-at-rest encryption: notes are now encrypted on-device with the same key that protects them in transit, closing the last plaintext-on-disk gap
+- Markdown import/export: export notes as plain .md files, or import them from other apps
+- Lightened body-preview text on title-less notes for readability

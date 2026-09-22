@@ -6,6 +6,24 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-09-23
+
+### Added
+- Local-at-rest encryption: notes stored on-device are now encrypted with the
+  same key that already protects them in transit to the sync server, closing
+  the last plaintext-on-disk gap. The encryption key is resolved from the
+  system keyring before any note is shown, even fully offline. If the keyring
+  can't be read but encrypted notes already exist, a recovery screen offers
+  passphrase-based recovery (if sync was ever configured) or an explicit,
+  confirmed local reset.
+- Markdown import/export: export every note as plain `.md` files to a folder
+  you choose, or import `.md` files from other apps — notes are never locked
+  into LibreNotes.
+
+### Fixed
+- Lightened body-preview text on title-less notes (mobile cards and desktop
+  sidebar), which was too close to the dark background to read comfortably.
+
 ## [1.3.0] — 2026-09-14
 
 ### Added
