@@ -3,16 +3,134 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
+import '../sync/note_crypto.dart';
 import 'database.dart';
+
+/// A note with its content decrypted — the shape every UI/sync caller works
+/// with. [NotesRepository] is the only place that ever touches
+/// [LocalNoteRow]'s raw `contentCiphertext`/`contentNonce` blobs.
+class NoteRow {
+  final String id;
+  final String title;
+  final String body;
+  final bool pinned;
+  final String color;
+  final int createdAt;
+  final int updatedAt;
+  final int rev;
+  final int seq;
+  final bool deleted;
+  final bool purged;
+  final bool dirty;
+  final bool archived;
+  final int? expiresAt;
+
+  const NoteRow({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.pinned,
+    required this.color,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.rev,
+    required this.seq,
+    required this.deleted,
+    required this.purged,
+    required this.dirty,
+    required this.archived,
+    this.expiresAt,
+  });
+}
 
 /// CRUD over the local notes table. Everything the UI does goes through here so
 /// that adding sync later (mark dirty, push/pull) is a change in one place.
+///
+/// Also the sole boundary for local at-rest encryption: `title`/`body` are
+/// stored on disk only as ciphertext, decrypted here on the way out and
+/// encrypted here on the way in, using [crypto] — the same DEK that protects
+/// notes in transit to the sync server.
 class NotesRepository {
-  NotesRepository(this._db);
+  NotesRepository(this._db, NoteCrypto crypto) : _crypto = crypto;
 
   final AppDatabase _db;
+  NoteCrypto _crypto;
   static const _uuid = Uuid();
   Timer? _expiryTimer;
+
+  NoteCrypto get crypto => _crypto;
+
+  /// Re-encrypts every local note's content under [newCrypto] and adopts it
+  /// as the repository's active key. Used when sync unlocks a keystore whose
+  /// DEK differs from the one this device was using locally — e.g. a second
+  /// device joining an account that already has notes on another device.
+  /// A no-op if the DEK is already the same.
+  Future<void> adoptCrypto(NoteCrypto newCrypto) async {
+    final oldBytes = await _crypto.extractDekBytes();
+    final newBytes = await newCrypto.extractDekBytes();
+    if (_bytesEqual(oldBytes, newBytes)) {
+      _crypto = newCrypto;
+      return;
+    }
+    final rows = await _db.select(_db.notes).get();
+    for (final row in rows) {
+      final payload = await _crypto.decrypt(row.contentCiphertext, row.contentNonce);
+      final enc = await newCrypto.encrypt(payload);
+      await (_db.update(_db.notes)..where((t) => t.id.equals(row.id))).write(
+        NotesCompanion(
+          contentCiphertext: Value(enc.ciphertext),
+          contentNonce: Value(enc.nonce),
+        ),
+      );
+    }
+    _crypto = newCrypto;
+  }
+
+  static bool _bytesEqual(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  Future<NoteRow> _decrypt(LocalNoteRow row) async {
+    final p = await _crypto.decrypt(row.contentCiphertext, row.contentNonce);
+    return NoteRow(
+      id: row.id,
+      title: p['title'] as String? ?? '',
+      body: p['body'] as String? ?? '',
+      pinned: row.pinned,
+      color: row.color,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      rev: row.rev,
+      seq: row.seq,
+      deleted: row.deleted,
+      purged: row.purged,
+      dirty: row.dirty,
+      archived: row.archived,
+      expiresAt: row.expiresAt,
+    );
+  }
+
+  Future<List<NoteRow>> _decryptAll(List<LocalNoteRow> rows) =>
+      Future.wait(rows.map(_decrypt));
+
+  Future<({Uint8List ciphertext, Uint8List nonce})> _encryptContent(
+    String title,
+    String body,
+  ) =>
+      _crypto.encrypt({'title': title, 'body': body});
+
+  /// All non-deleted notes (active + archived), for one-shot bulk export.
+  /// Trashed notes are excluded — exporting content on its way out feels
+  /// wrong as a default.
+  Future<List<NoteRow>> getAllForExport() async {
+    final rows =
+        await (_db.select(_db.notes)..where((t) => t.deleted.equals(false))).get();
+    return _decryptAll(rows);
+  }
 
   /// Live list of non-deleted, non-archived notes: pinned first, then most
   /// recently edited. Drift re-emits automatically whenever the table changes.
@@ -24,7 +142,8 @@ class NotesRepository {
             (t) =>
                 OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
           ]))
-        .watch();
+        .watch()
+        .asyncMap(_decryptAll);
   }
 
   /// Live list of archived notes, most recently edited first.
@@ -35,7 +154,8 @@ class NotesRepository {
             (t) =>
                 OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
           ]))
-        .watch();
+        .watch()
+        .asyncMap(_decryptAll);
   }
 
   /// Moves a note to the archive. Reversible via [unarchiveNote].
@@ -60,21 +180,26 @@ class NotesRepository {
 
   Stream<NoteRow?> watchNote(String id) {
     return (_db.select(_db.notes)..where((t) => t.id.equals(id)))
-        .watchSingleOrNull();
+        .watchSingleOrNull()
+        .asyncMap((row) => row == null ? null : _decrypt(row));
   }
 
-  Future<NoteRow?> getNote(String id) {
-    return (_db.select(_db.notes)..where((t) => t.id.equals(id)))
+  Future<NoteRow?> getNote(String id) async {
+    final row = await (_db.select(_db.notes)..where((t) => t.id.equals(id)))
         .getSingleOrNull();
+    return row == null ? null : _decrypt(row);
   }
 
   /// Creates a blank note and returns its id.
   Future<String> createNote() async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final id = _uuid.v4();
+    final enc = await _encryptContent('', '');
     await _db.into(_db.notes).insert(
           NotesCompanion.insert(
             id: id,
+            contentCiphertext: Value(enc.ciphertext),
+            contentNonce: Value(enc.nonce),
             createdAt: now,
             updatedAt: now,
           ),
@@ -89,13 +214,27 @@ class NotesRepository {
     bool? pinned,
     String? color,
   }) async {
+    // title/body share one ciphertext blob, so a change to either requires
+    // re-encrypting the full current pair — fetch it first when needed.
+    final textChanged = title != null || body != null;
+    Value<Uint8List> contentCiphertext = const Value.absent();
+    Value<Uint8List> contentNonce = const Value.absent();
+    if (textChanged) {
+      final current = await getNote(id);
+      final enc = await _encryptContent(
+        title ?? current?.title ?? '',
+        body ?? current?.body ?? '',
+      );
+      contentCiphertext = Value(enc.ciphertext);
+      contentNonce = Value(enc.nonce);
+    }
+
     // Only bump updatedAt (which drives sort order) when text changes.
     // Color and pin changes are synced via dirty=true but don't reorder notes.
-    final textChanged = title != null || body != null;
     await (_db.update(_db.notes)..where((t) => t.id.equals(id))).write(
       NotesCompanion(
-        title: title == null ? const Value.absent() : Value(title),
-        body: body == null ? const Value.absent() : Value(body),
+        contentCiphertext: contentCiphertext,
+        contentNonce: contentNonce,
         pinned: pinned == null ? const Value.absent() : Value(pinned),
         color: color == null ? const Value.absent() : Value(color),
         updatedAt: textChanged
@@ -152,7 +291,8 @@ class NotesRepository {
             (t) =>
                 OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
           ]))
-        .watch();
+        .watch()
+        .asyncMap(_decryptAll);
   }
 
   /// Restores a trashed note back to the active list.
@@ -200,8 +340,9 @@ class NotesRepository {
   // ---- Sync support --------------------------------------------------------
 
   /// Notes with un-pushed local edits.
-  Future<List<NoteRow>> dirtyNotes() {
-    return (_db.select(_db.notes)..where((t) => t.dirty.equals(true))).get();
+  Future<List<NoteRow>> dirtyNotes() async {
+    final rows = await (_db.select(_db.notes)..where((t) => t.dirty.equals(true))).get();
+    return _decryptAll(rows);
   }
 
   /// Hard-removes a row (used for deleting a note that never reached the
@@ -255,12 +396,13 @@ class NotesRepository {
     required bool deleted,
     bool archived = false,
     int? expiresAt,
-  }) {
-    return _db.into(_db.notes).insertOnConflictUpdate(
+  }) async {
+    final enc = await _encryptContent(title, body);
+    await _db.into(_db.notes).insertOnConflictUpdate(
           NotesCompanion.insert(
             id: id,
-            title: Value(title),
-            body: Value(body),
+            contentCiphertext: Value(enc.ciphertext),
+            contentNonce: Value(enc.nonce),
             pinned: Value(pinned),
             color: Value(color),
             createdAt: createdAt,

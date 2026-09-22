@@ -256,13 +256,84 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       Not caused by this work, but blocked verifying it — backed up and
       repaired with `PRAGMA user_version = 4` (metadata-only, no note content
       touched).
-20. **TODO — remaining before "good to go":**
+20. **v1.4.0: local-at-rest encryption + import/export + UI polish** — DONE:
+    - **Local-at-rest encryption**: local notes are no longer plaintext in the
+      Drift/sqlite table. `title`/`body` are encrypted together (as one
+      `{title, body}` payload, matching the sync payload shape) into
+      `content_ciphertext`/`content_nonce` BLOB columns (schema v6) using the
+      *same* DEK that protects notes in transit (`note_crypto.dart`'s
+      XChaCha20-Poly1305 AEAD). Everything else (pinned, color, timestamps,
+      archived, expiresAt) stays plaintext locally — the app itself needs to
+      sort/filter on those, and only the free-text content was the actual
+      plaintext-on-disk risk. `NotesRepository` is the sole boundary:
+      decrypts on the way out of `watchNotes()`/`watchNote()`/`getNote()`/
+      `watchArchive()`/`watchTrash()`/`dirtyNotes()`, encrypts on
+      `createNote()`/`updateContent()`/`applyRemote()`. UI code is unaffected
+      — it still consumes a `NoteRow` with plain `title`/`body` strings; that
+      type moved from a Drift-generated class to a plain one in
+      `notes_repository.dart` (the raw encrypted row is now `LocalNoteRow`).
+    - **DEK now resolves before any note is shown, even fully offline**: new
+      `lib/data/local_key_manager.dart` (`LocalKeyManager`) owns the single
+      raw DEK in the platform keyring (`flutter_secure_storage`), independent
+      of whether sync is configured. `main.dart` calls `db.warmUp()` (forces
+      the v5→v6 migration to run, which encrypts any legacy plaintext rows)
+      then `LocalKeyManager.resolve(db)` before building `NotesRepository` or
+      showing any UI. A brand-new/local-only install silently generates and
+      keyring-persists a fresh DEK (nothing at risk yet); an existing
+      sync-configured device reuses its already-keyring-persisted DEK (same
+      key protects local + remote — see below). If the keyring can't be read
+      *and* the notes table already has ciphertext rows, `resolve()` refuses
+      to silently mint a new, unrelated DEK (that would just make every note
+      permanently undecryptable) — it throws `LocalKeyStorageException` and
+      `main.dart` shows `lib/ui/locked_recovery_screen.dart` instead: if sync
+      was ever configured, the user's passphrase re-derives the same DEK from
+      the locally-cached wrapped keystore (no network round-trip); otherwise
+      there's no passphrase to recover with, and the only way forward is an
+      explicit, confirmed local reset. Keyring *write* failures are always
+      best-effort/non-fatal (matches the pre-existing sync auto-unlock
+      pattern) — only a *read* miss against existing ciphertext is treated as
+      unrecoverable-without-recovery-flow.
+    - **Sync and local encryption now share one DEK**: `SyncService` no
+      longer owns a separate `_crypto`/keyring lifecycle — it reads/writes
+      through `NotesRepository.crypto`. Connecting sync for the first time
+      (no server keystore yet) wraps *this device's existing local DEK*
+      (`NoteCrypto.wrap`) instead of generating a new one, so already-
+      encrypted local notes don't need re-encrypting. Connecting to an
+      *existing* keystore (second device, or reconnecting) adopts the
+      server's DEK via the new `NotesRepository.adoptCrypto()`, which
+      re-encrypts every local row under the new key (a no-op if the bytes are
+      already identical). `SyncService.isUnlocked` now means "sync is
+      actively connected" (`_api != null`), not "crypto is available" (it
+      always is, from boot).
+    - **Markdown import/export** (`lib/ui/import_export_page.dart`, opened via
+      an import/export icon next to Archive in the sidebar/toolbar on both
+      desktop and mobile): Export decrypts every non-trashed note on the fly
+      and writes one plain `.md` file per note (title as an `# H1` line, then
+      body; deduplicated filenames) into a folder the user picks via
+      `file_picker`. Import reads picked `.md`/`.markdown`/`.txt` files
+      (a leading `# Heading` line becomes the title) and creates+encrypts a
+      note per file through the normal `NotesRepository` path. Decryption/
+      encryption only ever happens at these explicit, user-triggered
+      boundaries. Verified via `flutter analyze`/tests and a real headless
+      desktop launch (including a live run of the v5→v6 migration against
+      this machine's actual dev database — 68 real notes migrated cleanly,
+      `user_version` now 6, `title`/`body` columns dropped); the folder/file
+      picker dialogs themselves weren't manually clicked through.
+    - **Lighter title-less card/sidebar body text** (item 17): mobile card
+      body-preview text now uses a brighter shade when it's a title-less
+      card's *only* content, instead of the dimmer secondary-preview shade;
+      desktop sidebar rows do the same (no more dimming for title-less rows
+      even when not the active selection).
+
+21. **TODO — versioned roadmap, grouped by dependency and theme:**
+
+    **v1.5.0 — Packaging & sync infra.** Distribution reach plus the two
+    remaining infra gaps.
     - **Linux .deb/.rpm packages**: add `fpm` to `scripts/package-linux.sh` to
       produce `.deb` (Debian/Ubuntu) and `.rpm` (Fedora/openSUSE) from the same
       Flutter bundle. Install to `/opt/librenotes/` + wrapper at `/usr/bin/librenotes`,
       desktop entry, icon, appdata in standard XDG paths. Distribute via GitHub
       releases alongside AppImage + tarball. Dependency: `gtk3`/`libgtk-3-0`.
-    - **Server optional WebSocket push** (instead of polling every 10s).
     - **Global hotkey via `xdg-desktop-portal` on Wayland**: the current
       quick-capture hotkey (`lib/desktop/quick_capture.dart`, `hotkey_manager`
       + `keybinder-3.0`) only works under X11/XWayland — `XGrabKey` has no
@@ -285,40 +356,48 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       own custom-shortcut settings. Goal is tiered friction: zero setup for
       X11 + GNOME/KDE (the majority), manual one-time setup only for the
       long-tail compositors.
-    - **awesome-selfhosted submission**: submit a PR to
-      `awesome-selfhosted/awesome-selfhosted` to list LibreNotes under the
-      Notes/Notebooks category. This is one of the highest-value visibility
-      actions for a self-hosted project — the list drives organic traffic, stars,
-      and the right audience. Write the PR yourself (no AI); it's a one-liner
-      entry in a markdown file.
-    - **Local-at-rest encryption**: local notes are currently stored as
-      **plaintext** in the Drift/sqlite table (`title`/`body` are plain
-      `text()` columns) — the DEK today only protects data in transit to the
-      server. Change local storage to ciphertext using the *same* DEK
-      (`note_crypto.dart`'s existing XChaCha20-Poly1305 AEAD): schema bump to
-      store encrypted blobs, `NotesRepository` decrypts on the way out of
-      `watchNotes()`/`watchNote()`/`getNote()` and encrypts on the way into
-      create/update. Consequence: the app needs the DEK resolved (keyring or
-      a passphrase prompt) before showing any note, even offline before first
-      sync — closes the "plaintext sqlite on a lost/stolen device" gap. The
-      import/export feature below is built directly on top of this boundary.
-    - **Markdown import/export as an explicit crypto boundary**: manual,
-      opt-in interop — "Export" decrypts notes on the fly and writes them out
-      as plain `.md` files to a folder the user picks, so notes are never
-      locked to LibreNotes and stay readable elsewhere. "Import" reads `.md`
-      files from other apps and immediately encrypts them into the local
-      at-rest store (see item above) using the same DEK. Decryption/
-      encryption only ever happens at these explicit, user-triggered
-      boundaries — nothing sits in plaintext on disk automatically.
+    - **Server optional WebSocket push** (instead of polling every 10s).
+
+    **v1.6.0 — Editing & customization.** Editor toolbar and color-picker
+    surface work, bundled since they touch the same UI.
+    - **Collapse note editor toolbar into an overflow menu**: the note editor
+      header is currently a row of individual icon buttons (self-destruct
+      timer, pin, color picker, preview toggle, archive, delete — see
+      screenshot from the owner) that gets cluttered, especially on mobile.
+      Move the less-frequently-used actions behind a three-dot overflow menu
+      instead of showing every action as its own always-visible icon.
+    - **WYSIWYG formatting mode (alternative to raw markdown)**: today notes
+      are edited as raw markdown text (typing `#`, `-`, etc. by hand). Add a
+      mode where selecting a piece of text surfaces a set of visual actions
+      (heading size, bold, list, etc.) that apply the equivalent markdown
+      under the hood — same underlying format, no need to know markdown
+      syntax to use it.
+    - **Text highlighting**: select text and apply a highlight in a choice of
+      colors, similar to the existing note color picker but scoped to a text
+      selection rather than the whole note.
+    - **Custom note colors (hex picker)**: the existing color picker (item 8)
+      only offers a fixed swatch set. Add a hex color input (on both Android
+      and desktop) so a note can be set to any arbitrary color, not just the
+      presets.
+    - **Gradient note colors**: extend note coloring beyond a single flat
+      color to support a gradient (two or more stops) as the note's
+      background.
+    - **Font selection**: let the user change the font used for note text
+      (editor + rendered preview).
+
+    **v1.7.0 — Personal knowledge base.** Both purely local/client-side, turn
+    the app from a note pile into a lightweight PKB.
     - **Backlinks / `[[wiki-links]]` between notes**: let notes reference each
       other by title (`[[Note Title]]`), resolved and rendered client-side
       against already-decrypted content — no server or crypto changes needed.
-      Show a "linked mentions" section per note for backlinks. Turns the app
-      from a note pile into a lightweight personal knowledge base.
+      Show a "linked mentions" section per note for backlinks.
     - **Per-note local version history**: `rev` already bumps on every
       accepted write — persist the last N encrypted snapshots per note
       locally (Drift) so a note can be time-traveled/undone independently of
       the trash/archive flow. Purely local, no server involvement.
+
+    **v1.8.0 — New surfaces.** Bigger, more independent features — new
+    platform surfaces rather than core app changes.
     - **Home-screen Android widget**: a widget for quick note creation
       (and/or showing pinned notes) without opening the app.
     - **On-device voice-to-text notes**: local speech-to-text (e.g.
@@ -328,24 +407,19 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
     - **Tearable note tabs on desktop**: let a note be dragged out of the main
       app window into its own separate window (tab-tear-off, like a browser
       tab), so multiple notes can be viewed/edited side by side on desktop.
-    - **Font selection**: let the user change the font used for note text
-      (editor + rendered preview).
-    - **Text highlighting**: select text and apply a highlight in a choice of
-      colors, similar to the existing note color picker but scoped to a text
-      selection rather than the whole note.
-    - **WYSIWYG formatting mode (alternative to raw markdown)**: today notes
-      are edited as raw markdown text (typing `#`, `-`, etc. by hand). Add a
-      mode where selecting a piece of text surfaces a set of visual actions
-      (heading size, bold, list, etc.) that apply the equivalent markdown
-      under the hood — same underlying format, no need to know markdown
-      syntax to use it.
-    - **Custom note colors (hex picker)**: the existing color picker (item 8)
-      only offers a fixed swatch set. Add a hex color input (on both Android
-      and desktop) so a note can be set to any arbitrary color, not just the
-      presets.
-    - **Gradient note colors**: extend note coloring beyond a single flat
-      color to support a gradient (two or more stops) as the note's
-      background.
+
+    **Not version-gated — do anytime, no release needed.**
+    - **awesome-selfhosted submission**: submit a PR to
+      `awesome-selfhosted/awesome-selfhosted` to list LibreNotes under the
+      Notes/Notebooks category. This is one of the highest-value visibility
+      actions for a self-hosted project — the list drives organic traffic, stars,
+      and the right audience. Write the PR yourself (no AI); it's a one-liner
+      entry in a markdown file.
+    - **Verify Android share-sheet on a real device/SDK**: shipped in v1.3.0
+      but only verified via `flutter analyze` and manifest/Kotlin review — no
+      Android SDK was available on the dev machine it was built on.
+    - **Enable GitHub Discussions** in repo settings (Settings → Features) —
+      the issue template `config.yml` already links to it.
 
 ## Conventions
 

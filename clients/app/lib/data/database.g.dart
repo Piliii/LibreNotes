@@ -3,7 +3,7 @@
 part of 'database.dart';
 
 // ignore_for_file: type=lint
-class $NotesTable extends Notes with TableInfo<$NotesTable, NoteRow> {
+class $NotesTable extends Notes with TableInfo<$NotesTable, LocalNoteRow> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
@@ -17,26 +17,32 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _titleMeta = const VerificationMeta('title');
-  @override
-  late final GeneratedColumn<String> title = GeneratedColumn<String>(
-    'title',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+  static const VerificationMeta _contentCiphertextMeta = const VerificationMeta(
+    'contentCiphertext',
   );
-  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
   @override
-  late final GeneratedColumn<String> body = GeneratedColumn<String>(
-    'body',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+  late final GeneratedColumn<Uint8List> contentCiphertext =
+      GeneratedColumn<Uint8List>(
+        'content_ciphertext',
+        aliasedName,
+        false,
+        type: DriftSqlType.blob,
+        requiredDuringInsert: false,
+        defaultValue: Constant(Uint8List(0)),
+      );
+  static const VerificationMeta _contentNonceMeta = const VerificationMeta(
+    'contentNonce',
   );
+  @override
+  late final GeneratedColumn<Uint8List> contentNonce =
+      GeneratedColumn<Uint8List>(
+        'content_nonce',
+        aliasedName,
+        false,
+        type: DriftSqlType.blob,
+        requiredDuringInsert: false,
+        defaultValue: Constant(Uint8List(0)),
+      );
   static const VerificationMeta _pinnedMeta = const VerificationMeta('pinned');
   @override
   late final GeneratedColumn<bool> pinned = GeneratedColumn<bool>(
@@ -172,8 +178,8 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteRow> {
   @override
   List<GeneratedColumn> get $columns => [
     id,
-    title,
-    body,
+    contentCiphertext,
+    contentNonce,
     pinned,
     color,
     createdAt,
@@ -193,7 +199,7 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteRow> {
   static const String $name = 'notes';
   @override
   VerificationContext validateIntegrity(
-    Insertable<NoteRow> instance, {
+    Insertable<LocalNoteRow> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -203,16 +209,22 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteRow> {
     } else if (isInserting) {
       context.missing(_idMeta);
     }
-    if (data.containsKey('title')) {
+    if (data.containsKey('content_ciphertext')) {
       context.handle(
-        _titleMeta,
-        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+        _contentCiphertextMeta,
+        contentCiphertext.isAcceptableOrUnknown(
+          data['content_ciphertext']!,
+          _contentCiphertextMeta,
+        ),
       );
     }
-    if (data.containsKey('body')) {
+    if (data.containsKey('content_nonce')) {
       context.handle(
-        _bodyMeta,
-        body.isAcceptableOrUnknown(data['body']!, _bodyMeta),
+        _contentNonceMeta,
+        contentNonce.isAcceptableOrUnknown(
+          data['content_nonce']!,
+          _contentNonceMeta,
+        ),
       );
     }
     if (data.containsKey('pinned')) {
@@ -291,20 +303,20 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteRow> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  NoteRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+  LocalNoteRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return NoteRow(
+    return LocalNoteRow(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
-      title: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}title'],
+      contentCiphertext: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}content_ciphertext'],
       )!,
-      body: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}body'],
+      contentNonce: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}content_nonce'],
       )!,
       pinned: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
@@ -359,10 +371,10 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteRow> {
   }
 }
 
-class NoteRow extends DataClass implements Insertable<NoteRow> {
+class LocalNoteRow extends DataClass implements Insertable<LocalNoteRow> {
   final String id;
-  final String title;
-  final String body;
+  final Uint8List contentCiphertext;
+  final Uint8List contentNonce;
   final bool pinned;
   final String color;
   final int createdAt;
@@ -391,10 +403,10 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
   /// the server never sees it. Enforced client-side by a periodic sweep that
   /// tombstones expired notes via the normal delete path.
   final int? expiresAt;
-  const NoteRow({
+  const LocalNoteRow({
     required this.id,
-    required this.title,
-    required this.body,
+    required this.contentCiphertext,
+    required this.contentNonce,
     required this.pinned,
     required this.color,
     required this.createdAt,
@@ -411,8 +423,8 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
-    map['title'] = Variable<String>(title);
-    map['body'] = Variable<String>(body);
+    map['content_ciphertext'] = Variable<Uint8List>(contentCiphertext);
+    map['content_nonce'] = Variable<Uint8List>(contentNonce);
     map['pinned'] = Variable<bool>(pinned);
     map['color'] = Variable<String>(color);
     map['created_at'] = Variable<int>(createdAt);
@@ -432,8 +444,8 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
   NotesCompanion toCompanion(bool nullToAbsent) {
     return NotesCompanion(
       id: Value(id),
-      title: Value(title),
-      body: Value(body),
+      contentCiphertext: Value(contentCiphertext),
+      contentNonce: Value(contentNonce),
       pinned: Value(pinned),
       color: Value(color),
       createdAt: Value(createdAt),
@@ -450,15 +462,17 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
     );
   }
 
-  factory NoteRow.fromJson(
+  factory LocalNoteRow.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return NoteRow(
+    return LocalNoteRow(
       id: serializer.fromJson<String>(json['id']),
-      title: serializer.fromJson<String>(json['title']),
-      body: serializer.fromJson<String>(json['body']),
+      contentCiphertext: serializer.fromJson<Uint8List>(
+        json['contentCiphertext'],
+      ),
+      contentNonce: serializer.fromJson<Uint8List>(json['contentNonce']),
       pinned: serializer.fromJson<bool>(json['pinned']),
       color: serializer.fromJson<String>(json['color']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
@@ -477,8 +491,8 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
-      'title': serializer.toJson<String>(title),
-      'body': serializer.toJson<String>(body),
+      'contentCiphertext': serializer.toJson<Uint8List>(contentCiphertext),
+      'contentNonce': serializer.toJson<Uint8List>(contentNonce),
       'pinned': serializer.toJson<bool>(pinned),
       'color': serializer.toJson<String>(color),
       'createdAt': serializer.toJson<int>(createdAt),
@@ -493,10 +507,10 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
     };
   }
 
-  NoteRow copyWith({
+  LocalNoteRow copyWith({
     String? id,
-    String? title,
-    String? body,
+    Uint8List? contentCiphertext,
+    Uint8List? contentNonce,
     bool? pinned,
     String? color,
     int? createdAt,
@@ -508,10 +522,10 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
     bool? dirty,
     bool? archived,
     Value<int?> expiresAt = const Value.absent(),
-  }) => NoteRow(
+  }) => LocalNoteRow(
     id: id ?? this.id,
-    title: title ?? this.title,
-    body: body ?? this.body,
+    contentCiphertext: contentCiphertext ?? this.contentCiphertext,
+    contentNonce: contentNonce ?? this.contentNonce,
     pinned: pinned ?? this.pinned,
     color: color ?? this.color,
     createdAt: createdAt ?? this.createdAt,
@@ -524,11 +538,15 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
     archived: archived ?? this.archived,
     expiresAt: expiresAt.present ? expiresAt.value : this.expiresAt,
   );
-  NoteRow copyWithCompanion(NotesCompanion data) {
-    return NoteRow(
+  LocalNoteRow copyWithCompanion(NotesCompanion data) {
+    return LocalNoteRow(
       id: data.id.present ? data.id.value : this.id,
-      title: data.title.present ? data.title.value : this.title,
-      body: data.body.present ? data.body.value : this.body,
+      contentCiphertext: data.contentCiphertext.present
+          ? data.contentCiphertext.value
+          : this.contentCiphertext,
+      contentNonce: data.contentNonce.present
+          ? data.contentNonce.value
+          : this.contentNonce,
       pinned: data.pinned.present ? data.pinned.value : this.pinned,
       color: data.color.present ? data.color.value : this.color,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
@@ -545,10 +563,10 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
 
   @override
   String toString() {
-    return (StringBuffer('NoteRow(')
+    return (StringBuffer('LocalNoteRow(')
           ..write('id: $id, ')
-          ..write('title: $title, ')
-          ..write('body: $body, ')
+          ..write('contentCiphertext: $contentCiphertext, ')
+          ..write('contentNonce: $contentNonce, ')
           ..write('pinned: $pinned, ')
           ..write('color: $color, ')
           ..write('createdAt: $createdAt, ')
@@ -567,8 +585,8 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
   @override
   int get hashCode => Object.hash(
     id,
-    title,
-    body,
+    $driftBlobEquality.hash(contentCiphertext),
+    $driftBlobEquality.hash(contentNonce),
     pinned,
     color,
     createdAt,
@@ -584,10 +602,13 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is NoteRow &&
+      (other is LocalNoteRow &&
           other.id == this.id &&
-          other.title == this.title &&
-          other.body == this.body &&
+          $driftBlobEquality.equals(
+            other.contentCiphertext,
+            this.contentCiphertext,
+          ) &&
+          $driftBlobEquality.equals(other.contentNonce, this.contentNonce) &&
           other.pinned == this.pinned &&
           other.color == this.color &&
           other.createdAt == this.createdAt &&
@@ -601,10 +622,10 @@ class NoteRow extends DataClass implements Insertable<NoteRow> {
           other.expiresAt == this.expiresAt);
 }
 
-class NotesCompanion extends UpdateCompanion<NoteRow> {
+class NotesCompanion extends UpdateCompanion<LocalNoteRow> {
   final Value<String> id;
-  final Value<String> title;
-  final Value<String> body;
+  final Value<Uint8List> contentCiphertext;
+  final Value<Uint8List> contentNonce;
   final Value<bool> pinned;
   final Value<String> color;
   final Value<int> createdAt;
@@ -619,8 +640,8 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
   final Value<int> rowid;
   const NotesCompanion({
     this.id = const Value.absent(),
-    this.title = const Value.absent(),
-    this.body = const Value.absent(),
+    this.contentCiphertext = const Value.absent(),
+    this.contentNonce = const Value.absent(),
     this.pinned = const Value.absent(),
     this.color = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -636,8 +657,8 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
   });
   NotesCompanion.insert({
     required String id,
-    this.title = const Value.absent(),
-    this.body = const Value.absent(),
+    this.contentCiphertext = const Value.absent(),
+    this.contentNonce = const Value.absent(),
     this.pinned = const Value.absent(),
     this.color = const Value.absent(),
     required int createdAt,
@@ -653,10 +674,10 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
   }) : id = Value(id),
        createdAt = Value(createdAt),
        updatedAt = Value(updatedAt);
-  static Insertable<NoteRow> custom({
+  static Insertable<LocalNoteRow> custom({
     Expression<String>? id,
-    Expression<String>? title,
-    Expression<String>? body,
+    Expression<Uint8List>? contentCiphertext,
+    Expression<Uint8List>? contentNonce,
     Expression<bool>? pinned,
     Expression<String>? color,
     Expression<int>? createdAt,
@@ -672,8 +693,8 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (title != null) 'title': title,
-      if (body != null) 'body': body,
+      if (contentCiphertext != null) 'content_ciphertext': contentCiphertext,
+      if (contentNonce != null) 'content_nonce': contentNonce,
       if (pinned != null) 'pinned': pinned,
       if (color != null) 'color': color,
       if (createdAt != null) 'created_at': createdAt,
@@ -691,8 +712,8 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
 
   NotesCompanion copyWith({
     Value<String>? id,
-    Value<String>? title,
-    Value<String>? body,
+    Value<Uint8List>? contentCiphertext,
+    Value<Uint8List>? contentNonce,
     Value<bool>? pinned,
     Value<String>? color,
     Value<int>? createdAt,
@@ -708,8 +729,8 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
   }) {
     return NotesCompanion(
       id: id ?? this.id,
-      title: title ?? this.title,
-      body: body ?? this.body,
+      contentCiphertext: contentCiphertext ?? this.contentCiphertext,
+      contentNonce: contentNonce ?? this.contentNonce,
       pinned: pinned ?? this.pinned,
       color: color ?? this.color,
       createdAt: createdAt ?? this.createdAt,
@@ -731,11 +752,11 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
     if (id.present) {
       map['id'] = Variable<String>(id.value);
     }
-    if (title.present) {
-      map['title'] = Variable<String>(title.value);
+    if (contentCiphertext.present) {
+      map['content_ciphertext'] = Variable<Uint8List>(contentCiphertext.value);
     }
-    if (body.present) {
-      map['body'] = Variable<String>(body.value);
+    if (contentNonce.present) {
+      map['content_nonce'] = Variable<Uint8List>(contentNonce.value);
     }
     if (pinned.present) {
       map['pinned'] = Variable<bool>(pinned.value);
@@ -780,8 +801,8 @@ class NotesCompanion extends UpdateCompanion<NoteRow> {
   String toString() {
     return (StringBuffer('NotesCompanion(')
           ..write('id: $id, ')
-          ..write('title: $title, ')
-          ..write('body: $body, ')
+          ..write('contentCiphertext: $contentCiphertext, ')
+          ..write('contentNonce: $contentNonce, ')
           ..write('pinned: $pinned, ')
           ..write('color: $color, ')
           ..write('createdAt: $createdAt, ')
@@ -1021,8 +1042,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
 typedef $$NotesTableCreateCompanionBuilder =
     NotesCompanion Function({
       required String id,
-      Value<String> title,
-      Value<String> body,
+      Value<Uint8List> contentCiphertext,
+      Value<Uint8List> contentNonce,
       Value<bool> pinned,
       Value<String> color,
       required int createdAt,
@@ -1039,8 +1060,8 @@ typedef $$NotesTableCreateCompanionBuilder =
 typedef $$NotesTableUpdateCompanionBuilder =
     NotesCompanion Function({
       Value<String> id,
-      Value<String> title,
-      Value<String> body,
+      Value<Uint8List> contentCiphertext,
+      Value<Uint8List> contentNonce,
       Value<bool> pinned,
       Value<String> color,
       Value<int> createdAt,
@@ -1068,13 +1089,13 @@ class $$NotesTableFilterComposer extends Composer<_$AppDatabase, $NotesTable> {
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get title => $composableBuilder(
-    column: $table.title,
+  ColumnFilters<Uint8List> get contentCiphertext => $composableBuilder(
+    column: $table.contentCiphertext,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get body => $composableBuilder(
-    column: $table.body,
+  ColumnFilters<Uint8List> get contentNonce => $composableBuilder(
+    column: $table.contentNonce,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1148,13 +1169,13 @@ class $$NotesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get title => $composableBuilder(
-    column: $table.title,
+  ColumnOrderings<Uint8List> get contentCiphertext => $composableBuilder(
+    column: $table.contentCiphertext,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get body => $composableBuilder(
-    column: $table.body,
+  ColumnOrderings<Uint8List> get contentNonce => $composableBuilder(
+    column: $table.contentNonce,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -1226,11 +1247,15 @@ class $$NotesTableAnnotationComposer
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get title =>
-      $composableBuilder(column: $table.title, builder: (column) => column);
+  GeneratedColumn<Uint8List> get contentCiphertext => $composableBuilder(
+    column: $table.contentCiphertext,
+    builder: (column) => column,
+  );
 
-  GeneratedColumn<String> get body =>
-      $composableBuilder(column: $table.body, builder: (column) => column);
+  GeneratedColumn<Uint8List> get contentNonce => $composableBuilder(
+    column: $table.contentNonce,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<bool> get pinned =>
       $composableBuilder(column: $table.pinned, builder: (column) => column);
@@ -1271,14 +1296,17 @@ class $$NotesTableTableManager
         RootTableManager<
           _$AppDatabase,
           $NotesTable,
-          NoteRow,
+          LocalNoteRow,
           $$NotesTableFilterComposer,
           $$NotesTableOrderingComposer,
           $$NotesTableAnnotationComposer,
           $$NotesTableCreateCompanionBuilder,
           $$NotesTableUpdateCompanionBuilder,
-          (NoteRow, BaseReferences<_$AppDatabase, $NotesTable, NoteRow>),
-          NoteRow,
+          (
+            LocalNoteRow,
+            BaseReferences<_$AppDatabase, $NotesTable, LocalNoteRow>,
+          ),
+          LocalNoteRow,
           PrefetchHooks Function()
         > {
   $$NotesTableTableManager(_$AppDatabase db, $NotesTable table)
@@ -1295,8 +1323,8 @@ class $$NotesTableTableManager
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
-                Value<String> title = const Value.absent(),
-                Value<String> body = const Value.absent(),
+                Value<Uint8List> contentCiphertext = const Value.absent(),
+                Value<Uint8List> contentNonce = const Value.absent(),
                 Value<bool> pinned = const Value.absent(),
                 Value<String> color = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
@@ -1311,8 +1339,8 @@ class $$NotesTableTableManager
                 Value<int> rowid = const Value.absent(),
               }) => NotesCompanion(
                 id: id,
-                title: title,
-                body: body,
+                contentCiphertext: contentCiphertext,
+                contentNonce: contentNonce,
                 pinned: pinned,
                 color: color,
                 createdAt: createdAt,
@@ -1329,8 +1357,8 @@ class $$NotesTableTableManager
           createCompanionCallback:
               ({
                 required String id,
-                Value<String> title = const Value.absent(),
-                Value<String> body = const Value.absent(),
+                Value<Uint8List> contentCiphertext = const Value.absent(),
+                Value<Uint8List> contentNonce = const Value.absent(),
                 Value<bool> pinned = const Value.absent(),
                 Value<String> color = const Value.absent(),
                 required int createdAt,
@@ -1345,8 +1373,8 @@ class $$NotesTableTableManager
                 Value<int> rowid = const Value.absent(),
               }) => NotesCompanion.insert(
                 id: id,
-                title: title,
-                body: body,
+                contentCiphertext: contentCiphertext,
+                contentNonce: contentNonce,
                 pinned: pinned,
                 color: color,
                 createdAt: createdAt,
@@ -1372,14 +1400,14 @@ typedef $$NotesTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
       $NotesTable,
-      NoteRow,
+      LocalNoteRow,
       $$NotesTableFilterComposer,
       $$NotesTableOrderingComposer,
       $$NotesTableAnnotationComposer,
       $$NotesTableCreateCompanionBuilder,
       $$NotesTableUpdateCompanionBuilder,
-      (NoteRow, BaseReferences<_$AppDatabase, $NotesTable, NoteRow>),
-      NoteRow,
+      (LocalNoteRow, BaseReferences<_$AppDatabase, $NotesTable, LocalNoteRow>),
+      LocalNoteRow,
       PrefetchHooks Function()
     >;
 typedef $$SyncKvTableCreateCompanionBuilder =

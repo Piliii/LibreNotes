@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../data/database.dart';
 import '../data/notes_repository.dart';
 import '../theme.dart';
 

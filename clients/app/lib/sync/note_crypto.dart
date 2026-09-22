@@ -65,22 +65,37 @@ class NoteCrypto {
   /// First-time setup: generate a fresh DEK and wrap it for the keystore.
   static Future<({Uint8List wrappedDek, Uint8List salt, NoteCrypto crypto})>
       create(String passphrase, {KdfParams params = const KdfParams()}) async {
+    final dek = await _aead.newSecretKey();
+    final wrapped = await wrap(await dek.extractBytes(), passphrase, params: params);
+    return (wrappedDek: wrapped.wrappedDek, salt: wrapped.salt, crypto: NoteCrypto._(dek));
+  }
+
+  /// Wraps an *existing* DEK (rather than generating a new one) for upload to
+  /// the keystore. Used when a device already has a local-only DEK protecting
+  /// notes at rest and is connecting sync for the first time: the local DEK
+  /// becomes the account's DEK instead of orphaning already-encrypted notes
+  /// under a discarded, never-uploaded key.
+  static Future<({Uint8List wrappedDek, Uint8List salt})> wrap(
+    List<int> dekBytes,
+    String passphrase, {
+    KdfParams params = const KdfParams(),
+  }) async {
     final salt = Uint8List.fromList(_randomBytes(16));
     final kek = await _deriveKek(passphrase, salt, params);
-    final dek = await _aead.newSecretKey();
-
-    final dekBytes = await dek.extractBytes();
     final box = await _aead.encrypt(
       dekBytes,
       secretKey: kek,
       nonce: _aead.newNonce(),
     );
-    return (
-      wrappedDek: Uint8List.fromList(box.concatenation()),
-      salt: salt,
-      crypto: NoteCrypto._(dek),
-    );
+    return (wrappedDek: Uint8List.fromList(box.concatenation()), salt: salt);
   }
+
+  /// Generates a fresh local-only DEK, not wrapped by any passphrase. Used to
+  /// protect notes at rest before (or absent) any sync setup: the raw bytes
+  /// are persisted directly to the platform keyring by [LocalKeyManager]
+  /// rather than a passphrase-derived wrap, since there is no passphrase yet.
+  static Future<NoteCrypto> generateLocal() async =>
+      NoteCrypto._(await _aead.newSecretKey());
 
   /// Unlock an existing keystore (new device, or re-entering the passphrase).
   /// Throws [SecretBoxAuthenticationError] if the passphrase is wrong.

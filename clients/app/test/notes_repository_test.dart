@@ -3,14 +3,15 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:librenotes/data/database.dart';
 import 'package:librenotes/data/notes_repository.dart';
+import 'package:librenotes/sync/note_crypto.dart';
 
 void main() {
   late AppDatabase db;
   late NotesRepository repo;
 
-  setUp(() {
+  setUp(() async {
     db = AppDatabase.forTesting(NativeDatabase.memory());
-    repo = NotesRepository(db);
+    repo = NotesRepository(db, await NoteCrypto.generateLocal());
   });
 
   tearDown(() => db.close());

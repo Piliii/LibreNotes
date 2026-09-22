@@ -3,12 +3,12 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../data/database.dart';
 import '../data/notes_repository.dart';
 import '../format.dart';
 import '../sync/sync_service.dart';
 import '../theme.dart';
 import 'archive_page.dart';
+import 'import_export_page.dart';
 import 'note_editor.dart';
 import 'sync_settings_page.dart';
 
@@ -301,6 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: _newNote,
               ),
               _ArchiveButton(repo: widget.repo, onChanged: widget.sync.nudge),
+              _ImportExportButton(repo: widget.repo),
               _RefreshButton(sync: widget.sync),
               _SyncButton(sync: widget.sync),
             ],
@@ -461,6 +462,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               _ArchiveButton(
                                   repo: widget.repo,
                                   onChanged: widget.sync.nudge),
+                              _ImportExportButton(repo: widget.repo),
                               _RefreshButton(sync: widget.sync),
                               _SyncButton(sync: widget.sync),
                             ],
@@ -531,6 +533,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Widget column(List<NoteRow> items) => SizedBox(
               width: cardWidth,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (final note in items)
                     Padding(
@@ -860,6 +863,7 @@ class _Sidebar extends StatelessWidget {
                       onPressed: onLayoutToggle,
                     ),
                     _ArchiveButton(repo: repo, onChanged: sync.nudge),
+                    _ImportExportButton(repo: repo),
                     _RefreshButton(sync: sync),
                     _SyncButton(sync: sync),
                   ],
@@ -1127,7 +1131,11 @@ class _NoteListItem extends StatelessWidget {
                               maxLines: note.title.isEmpty ? 2 : 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: active
+                                // Title-less notes show the body as their
+                                // primary line, so it gets full brightness
+                                // like a real title would — no dimming even
+                                // when the row isn't the active selection.
+                                color: (active || note.title.isEmpty)
                                     ? NotallyColors.textBright
                                     : NotallyColors.textBright
                                         .withValues(alpha: 0.92),
@@ -1452,6 +1460,7 @@ class _NoteCardState extends State<_NoteCard>
         child: AnimatedContainer(
       duration: const Duration(milliseconds: 280),
       curve: Curves.easeOut,
+      width: double.infinity,
       constraints: const BoxConstraints(minHeight: 100),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -1537,7 +1546,13 @@ class _NoteCardState extends State<_NoteCard>
                     maxLines: widget.note.title.isEmpty ? 9 : 7,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                        color: NotallyColors.textMuted.withValues(alpha: 0.9),
+                        // Title-less cards show only the body, so it's the
+                        // primary text here — lighter than the ordinary
+                        // secondary-preview shade so it doesn't blend into
+                        // the card background.
+                        color: widget.note.title.isEmpty
+                            ? NotallyColors.textBright.withValues(alpha: 0.85)
+                            : NotallyColors.textMuted.withValues(alpha: 0.9),
                         fontSize: 13,
                         height: 1.45),
                   ),
@@ -1619,6 +1634,28 @@ class _ArchiveButton extends StatelessWidget {
       onPressed: () => Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ArchivePage(repo: repo, onChanged: onChanged),
+        ),
+      ),
+    );
+  }
+}
+
+/// Opens the markdown import/export screen.
+class _ImportExportButton extends StatelessWidget {
+  const _ImportExportButton({required this.repo});
+
+  final NotesRepository repo;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: 'Import / export',
+      color: NotallyColors.textFaint,
+      iconSize: 22,
+      icon: const Icon(Icons.import_export),
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ImportExportPage(repo: repo),
         ),
       ),
     );

@@ -11,6 +11,7 @@ import 'package:notally_server/db.dart';
 
 import 'package:librenotes/data/database.dart';
 import 'package:librenotes/data/notes_repository.dart';
+import 'package:librenotes/sync/note_crypto.dart';
 import 'package:librenotes/sync/sync_api.dart';
 import 'package:librenotes/sync/sync_service.dart';
 
@@ -151,7 +152,7 @@ void main() {
       addTearDown(() async => srv.close(force: true));
 
       final db = AppDatabase.forTesting(NativeDatabase.memory());
-      final repo = NotesRepository(db);
+      final repo = NotesRepository(db, await NoteCrypto.generateLocal());
       final sync = SyncService(repo);
       addTearDown(() async {
         sync.dispose();
@@ -216,7 +217,7 @@ class _Device {
     String passphrase,
   ) async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
-    final repo = NotesRepository(db);
+    final repo = NotesRepository(db, await NoteCrypto.generateLocal());
     final sync = SyncService(repo);
     await sync.init();
     await sync.connect(baseUrl: baseUrl, token: token, passphrase: passphrase);

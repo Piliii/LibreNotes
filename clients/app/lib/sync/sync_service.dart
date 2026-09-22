@@ -3,10 +3,9 @@ import 'dart:convert';
 
 import 'package:cryptography/cryptography.dart' show SecretBoxAuthenticationError;
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:notally_core/notally_core.dart';
 
-import '../data/database.dart';
+import '../data/local_key_manager.dart';
 import '../data/notes_repository.dart';
 import 'note_crypto.dart';
 import 'sync_api.dart';
@@ -65,7 +64,6 @@ class SyncService {
   final NotesRepository _repo;
 
   SyncApi? _api;
-  NoteCrypto? _crypto;
   Timer? _auto;
   Timer? _nudge;
 
@@ -81,59 +79,30 @@ class SyncService {
   static const _kMem = 'ks.mem';
   static const _kIter = 'ks.iter';
   static const _kPar = 'ks.par';
-  static const _kRawDek = 'ks.rawDek'; // platform keyring (secure storage)
 
-  bool get isUnlocked => _crypto != null;
+  /// Notes' at-rest DEK is resolved once at app boot (see `LocalKeyManager`),
+  /// well before sync exists — so "unlocked" here means "sync is actively
+  /// connected", not "crypto is available" (it always is).
+  bool get isUnlocked => _api != null;
 
-  /// Called at startup: figure out whether we're configured and/or unlocked.
-  /// If the platform keyring holds the DEK, silently auto-unlocks and starts
-  /// syncing without prompting the user for their passphrase.
+  /// Called at startup: figure out whether sync is configured, and if so,
+  /// resume it using the already-resolved local DEK (see `main.dart`) without
+  /// prompting the user for their passphrase.
   Future<void> init() async {
-    final configured = await _repo.kvGet(_kBaseUrl) != null &&
-        await _repo.kvGet(_kWrapped) != null;
+    final baseUrl = await _repo.kvGet(_kBaseUrl);
+    final token = await _repo.kvGet(_kToken);
+    final configured = baseUrl != null && await _repo.kvGet(_kWrapped) != null;
     if (!configured) {
       status.value = const SyncStatus(SyncState.notConfigured);
       return;
     }
-    final autoUnlocked = await _tryAutoUnlock();
-    if (!autoUnlocked) {
+    if (token == null) {
       status.value = const SyncStatus(SyncState.locked);
+      return;
     }
-  }
-
-  /// Tries to read the raw DEK from the platform keyring. On success, skips
-  /// the Argon2id derivation entirely and goes straight to syncing.
-  Future<bool> _tryAutoUnlock() async {
-    try {
-      const storage = FlutterSecureStorage();
-      final rawDek = await storage.read(key: _kRawDek);
-      if (rawDek == null) return false;
-      final baseUrl = await _repo.kvGet(_kBaseUrl);
-      final token = await _repo.kvGet(_kToken);
-      if (baseUrl == null || token == null) return false;
-      _crypto = NoteCrypto.fromDek(base64Decode(rawDek));
-      _api = SyncApi(baseUrl: baseUrl, token: token);
-      await syncNow();
-      _startAuto();
-      return true;
-    } catch (_) {
-      // Keyring unavailable or cleared — fall back to passphrase prompt.
-      _crypto = null;
-      _api = null;
-      return false;
-    }
-  }
-
-  /// Saves the raw DEK to the platform keyring so future app restarts can
-  /// auto-unlock without prompting for the passphrase.
-  Future<void> _saveDekToKeyring(NoteCrypto crypto) async {
-    try {
-      final dekBytes = await crypto.extractDekBytes();
-      await const FlutterSecureStorage()
-          .write(key: _kRawDek, value: base64Encode(dekBytes));
-    } catch (_) {
-      // Keyring unavailable — no-op; user will be prompted next restart.
-    }
+    _api = SyncApi(baseUrl: baseUrl, token: token);
+    await syncNow();
+    _startAuto();
   }
 
   Future<String?> get savedBaseUrl => _repo.kvGet(_kBaseUrl);
@@ -176,22 +145,26 @@ class SyncService {
     try {
       await api.checkApiVersion();
       var ks = await api.getKeystore();
-      NoteCrypto crypto;
       if (ks == null) {
-        // First device ever: create a keystore and upload it.
+        // First device ever: wrap this device's *existing* local DEK (rather
+        // than generating a new one) and upload it, so already-encrypted
+        // local notes stay valid — nothing needs re-encrypting.
         const params = KdfParams();
-        final created = await NoteCrypto.create(passphrase, params: params);
+        final dekBytes = await _repo.crypto.extractDekBytes();
+        final wrapped = await NoteCrypto.wrap(dekBytes, passphrase, params: params);
         ks = Keystore(
-          wrappedDek: created.wrappedDek,
-          salt: created.salt,
+          wrappedDek: wrapped.wrappedDek,
+          salt: wrapped.salt,
           kdfMemory: params.memory,
           kdfIterations: params.iterations,
           kdfParallelism: params.parallelism,
         );
         await api.putKeystore(ks);
-        crypto = created.crypto;
       } else {
-        crypto = await NoteCrypto.unlock(
+        // Existing account (e.g. a second device): the server's DEK may
+        // differ from whatever this device generated for itself locally —
+        // adopt it, re-encrypting any local notes under the account's key.
+        final crypto = await NoteCrypto.unlock(
           passphrase,
           ks.wrappedDek,
           ks.salt,
@@ -201,11 +174,11 @@ class SyncService {
             parallelism: ks.kdfParallelism,
           ),
         );
+        await _repo.adoptCrypto(crypto);
       }
       await _persist(baseUrl, token, ks);
       _api = api;
-      _crypto = crypto;
-      unawaited(_saveDekToKeyring(crypto));
+      unawaited(LocalKeyManager.persist(_repo.crypto));
       await syncNow();
       _startAuto();
     } catch (e) {
@@ -214,7 +187,9 @@ class SyncService {
     }
   }
 
-  /// App restart: config is saved, but we need the passphrase to unwrap the DEK.
+  /// Explicit re-derivation of the account DEK from the passphrase — used to
+  /// recover if the local keyring copy was lost or to verify the passphrase
+  /// against the locally-cached keystore without a server round-trip.
   Future<void> unlock(String passphrase) async {
     final baseUrl = await _repo.kvGet(_kBaseUrl);
     final token = await _repo.kvGet(_kToken);
@@ -222,7 +197,7 @@ class SyncService {
     if (baseUrl == null || token == null || ks == null) {
       throw StateError('Not configured');
     }
-    _crypto = await NoteCrypto.unlock(
+    final crypto = await NoteCrypto.unlock(
       passphrase,
       ks.wrappedDek,
       ks.salt,
@@ -232,8 +207,9 @@ class SyncService {
         parallelism: ks.kdfParallelism,
       ),
     );
+    await _repo.adoptCrypto(crypto);
     _api = SyncApi(baseUrl: baseUrl, token: token);
-    unawaited(_saveDekToKeyring(_crypto!));
+    unawaited(LocalKeyManager.persist(_repo.crypto));
     await syncNow();
     _startAuto();
   }
@@ -242,8 +218,8 @@ class SyncService {
   /// [conflicts] for the user to resolve.
   Future<void> syncNow() async {
     final api = _api;
-    final crypto = _crypto;
-    if (api == null || crypto == null) return;
+    if (api == null) return;
+    final crypto = _repo.crypto;
 
     status.value = const SyncStatus(SyncState.syncing, message: 'Syncing…');
     try {
@@ -362,9 +338,9 @@ class SyncService {
 
   Future<void> keepLocal(String id) async {
     final c = _conflictFor(id);
-    final crypto = _crypto;
     final api = _api;
-    if (c == null || crypto == null || api == null) return;
+    if (c == null || api == null) return;
+    final crypto = _repo.crypto;
 
     final local = await _repo.getNote(id);
     if (local == null) return;

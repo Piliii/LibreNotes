@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
-import '../data/database.dart';
 import '../data/notes_repository.dart';
 import '../format.dart';
 import '../theme.dart';

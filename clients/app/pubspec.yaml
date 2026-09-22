@@ -48,6 +48,8 @@ dependencies:
   flutter_secure_storage: ^9.2.0
   hotkey_manager: ^0.2.3
   window_manager: ^0.5.2
+  # Folder/file pickers for markdown import/export.
+  file_picker: ^8.1.6
 
 dev_dependencies:
   flutter_test:

@@ -6,16 +6,36 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'android/share_intent.dart';
 import 'data/database.dart';
+import 'data/local_key_manager.dart';
 import 'data/notes_repository.dart';
 import 'desktop/quick_capture.dart';
+import 'sync/note_crypto.dart';
 import 'sync/sync_service.dart';
 import 'theme.dart';
 import 'ui/home_screen.dart';
+import 'ui/locked_recovery_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final db = AppDatabase();
-  final repo = NotesRepository(db);
+  // Forces any pending schema migration to run now, so the local DEK is
+  // guaranteed to be in the keyring (or we already know it can't be) before
+  // deciding whether to boot straight into the app or into recovery.
+  await db.warmUp();
+
+  try {
+    final crypto = await LocalKeyManager.resolve(db);
+    await _launch(db, crypto);
+  } on LocalKeyStorageException {
+    runApp(_RecoveryApp(db: db));
+  }
+}
+
+/// Builds the real app once the local at-rest DEK is resolved. Also the
+/// target of [LockedRecoveryScreen.onRecovered], so recovering swaps the
+/// recovery screen out for the normal app without needing a process restart.
+Future<void> _launch(AppDatabase db, NoteCrypto crypto) async {
+  final repo = NotesRepository(db, crypto);
   repo.startExpirySweep();
   final sync = SyncService(repo);
   await sync.init();
@@ -33,6 +53,25 @@ Future<void> main() async {
   // needs `navigatorKey.currentState` mounted before it can push the editor
   // route, which isn't true yet synchronously after `runApp`.
   WidgetsBinding.instance.addPostFrameCallback((_) => shareIntent.init());
+}
+
+class _RecoveryApp extends StatelessWidget {
+  const _RecoveryApp({required this.db});
+
+  final AppDatabase db;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'LibreNotes',
+      debugShowCheckedModeBanner: false,
+      theme: buildNotallyTheme(),
+      home: LockedRecoveryScreen(
+        db: db,
+        onRecovered: (crypto) => _launch(db, crypto),
+      ),
+    );
+  }
 }
 
 class NotallyApp extends StatefulWidget {

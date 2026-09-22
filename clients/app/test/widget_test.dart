@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:librenotes/data/database.dart';
 import 'package:librenotes/data/notes_repository.dart';
 import 'package:librenotes/main.dart';
+import 'package:librenotes/sync/note_crypto.dart';
 import 'package:librenotes/sync/sync_service.dart';
 
 void main() {
@@ -14,9 +15,9 @@ void main() {
     late AppDatabase db;
     late NotesRepository repo;
 
-    setUp(() {
+    setUp(() async {
       db = AppDatabase.forTesting(NativeDatabase.memory());
-      repo = NotesRepository(db);
+      repo = NotesRepository(db, await NoteCrypto.generateLocal());
     });
     tearDown(() => db.close());
 
@@ -88,7 +89,7 @@ void main() {
 
   testWidgets('renders the desktop shell', (tester) async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
-    final repo = NotesRepository(db);
+    final repo = NotesRepository(db, await NoteCrypto.generateLocal());
     final sync = SyncService(repo);
     addTearDown(db.close);
     addTearDown(sync.dispose);
