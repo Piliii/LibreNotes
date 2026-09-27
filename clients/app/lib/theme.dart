@@ -10,13 +10,56 @@ const kNoteColorHexes = [
   '#20353d', // teal
   '#20273d', // ocean
   '#2d203d', // violet
-  '#3d2035', // mauve
 ];
 
 /// Converts a stored hex color string (e.g. "#2a2a2a") to a Flutter [Color].
 Color colorFromHex(String hex) {
   final h = hex.startsWith('#') ? hex.substring(1) : hex;
   return Color(int.parse('FF$h', radix: 16));
+}
+
+/// The inverse of [colorFromHex] — a Flutter [Color] back to a stored hex
+/// string (e.g. "#2a2a2a"), dropping alpha since note colors are opaque.
+String hexFromColor(Color color) =>
+    '#${color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
+
+/// A note's stored `color` is either a plain hex string (a preset or a
+/// custom color, e.g. "#2a2a2a") or, for a gradient, `grad:` followed by 2-3
+/// comma-separated hex stops (e.g. "grad:#2a2a2a,#20353d"). This is a plain
+/// string on purpose: it's what's already stored in the `color` TEXT column
+/// and threaded opaquely through the encrypted sync payload, so encoding a
+/// gradient this way needs no schema migration and no changes outside the
+/// client UI layer — everything else just keeps passing a `String` through.
+const _gradientPrefix = 'grad:';
+
+bool isGradientColor(String color) => color.startsWith(_gradientPrefix);
+
+List<String> gradientStopHexes(String color) =>
+    color.substring(_gradientPrefix.length).split(',');
+
+String encodeGradient(List<String> stopHexes) =>
+    '$_gradientPrefix${stopHexes.join(',')}';
+
+/// A note's color as 1-3 base [Color]s: a single color for a solid note, or
+/// the user's own stops (in order) for a gradient note.
+List<Color> noteBaseColors(String color) => isGradientColor(color)
+    ? gradientStopHexes(color).map(colorFromHex).toList()
+    : [colorFromHex(color)];
+
+/// A plain background decoration for [color] — solid fill, or a diagonal
+/// linear gradient of its stops. For the editor surfaces, which just need to
+/// show the note's actual color(s) (unlike the card/list rows, which layer
+/// an extra lighter/darker "sheen" on top — see their own gradient logic).
+BoxDecoration noteBackgroundDecoration(String color) {
+  final bases = noteBaseColors(color);
+  if (bases.length == 1) return BoxDecoration(color: bases.first);
+  return BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: bases,
+    ),
+  );
 }
 
 /// Notally's palette, lifted straight from the original prototype.

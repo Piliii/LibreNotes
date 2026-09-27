@@ -1,0 +1,4 @@
+- Live-preview markdown editing: styled bold/headings/highlights while you type, plus a selection toolbar for quick formatting
+- Text highlighting with 5 preset colors
+- Custom hex color picker and gradient note colors
+- Fixed a database migration bug that could crash-loop the app after certain upgrade paths

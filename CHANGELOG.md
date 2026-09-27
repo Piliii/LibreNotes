@@ -6,6 +6,24 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-09-27
+
+### Added
+- Live-preview markdown editing: the editor now renders markdown styled
+  (bold, headings, highlights) instead of raw syntax, with a selection
+  toolbar for heading/bold/italic/bullet-list — no separate raw/preview mode
+  to switch out of.
+- Text highlighting: select text and apply one of 5 preset colors.
+- Custom hex color picker and gradient (2-3 stop) note colors, alongside the
+  existing preset swatches.
+
+### Fixed
+- A recurring local-database crash-loop: schema migrations now persist their
+  version incrementally instead of only at the end, and opening a database
+  with a newer on-disk schema than the running app understands now shows an
+  "update the app" screen instead of silently corrupting the version number
+  or crash-looping.
+
 ## [1.4.0] — 2026-09-23
 
 ### Added

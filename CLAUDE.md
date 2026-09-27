@@ -325,9 +325,111 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       desktop sidebar rows do the same (no more dimming for title-less rows
       even when not the active selection).
 
-21. **TODO — versioned roadmap, grouped by dependency and theme:**
+21. **Local db migration hardening (schema-downgrade guard)** — DONE:
+    - **Root cause of a recurring dev-machine crash-loop**: `AppDatabase.migration`'s
+      `onUpgrade` only wrote `PRAGMA user_version` once, after the *entire*
+      multi-step v1→v6 migration function returned. Any interruption partway
+      through (hot restart, a slow/failing step, a killed process) left the
+      already-applied `ALTER TABLE`s committed (SQLite auto-commits DDL) but
+      the version number stuck behind, so the next launch re-ran completed
+      steps and crashed on `duplicate column name`. This happened three times
+      on this machine's dev database (`~/Documents/notally.sqlite`, backups
+      at `.bak-preschemafix-20260906T012545`/`-20260924T033531`) before being
+      root-caused on 2026-09-27.
+    - **Fix — incremental version persistence**: each `if (from < N)` step in
+      `database.dart`'s `onUpgrade` now issues `PRAGMA user_version = N`
+      immediately after completing, instead of relying on drift to do it once
+      at the end. The v5→v6 step (the riskiest: async, multi-statement, loops
+      over every note to encrypt it) is additionally made resumable/idempotent
+      by checking actual on-disk state — `pragma_table_info('notes')` for
+      which columns already exist, and `WHERE length(content_ciphertext) = 0`
+      for which rows still need encrypting — instead of trusting `from`.
+    - **Fix — the actual recurring culprit was a version *downgrade*, not just
+      interruption**: drift calls the same `onUpgrade(m, from, to)` callback
+      for downgrades (`from > to`) as for upgrades, and with no guard, an
+      older app binary opening a newer-schema database would run zero steps
+      (all `if (from < N)` checks false), return "successfully," and drift
+      would then stamp `user_version` with *that old binary's own lower*
+      schemaVersion regardless (confirmed in drift 2.31.0 source,
+      `_runMigrations` in `engines.dart`: `setSchemaVersion` runs
+      unconditionally after `onUpgrade` returns, based only on `oldVersion !=
+      currentVersion`) — silently corrupting the version number while leaving
+      the actual (newer) table shape untouched. In practice this kept
+      undoing every fix: the desktop launcher (`dev.librenotes.app.desktop`
+      → `/usr/bin/librenotes`) runs the AUR package `librenotes-bin`, which
+      was stuck at v1.2.0 (installed 2026-06-28, never `yay`-updated) even
+      though AUR itself already had `1.4.0-1` published — opening it against
+      the dev database after each repair reset the version number again.
+      `onUpgrade` now throws `DatabaseTooNewException(from, to)` immediately
+      when `from > to`, *before* drift's version write — confirmed via a
+      regression test (`test/database_downgrade_guard_test.dart`) that seeds
+      a real sqlite file at a future schema version and asserts
+      `PRAGMA user_version` is left completely untouched after the throw.
+      `main.dart` catches it at `db.warmUp()` and shows
+      `lib/ui/outdated_app_screen.dart` ("update the app") instead of
+      crashing or silently corrupting state.
+    - **Repaired the dev database** to match: removed 2 note rows with
+      empty/never-encrypted `content_ciphertext` (unrecoverable — `title`/
+      `body` plaintext columns were already dropped in this file by an
+      earlier interrupted migration), set `user_version = 6` to match the
+      actual (already-migrated) table shape. Fresh backup at
+      `.bak-preschemafix-20260927T202518` before touching anything.
+    - **Follow-up for the owner**: run `yay -S librenotes-bin` to sync the
+      installed binary with AUR's current `1.4.0-1` — until that's done, the
+      desktop launcher still opens the stale v1.2.0 build (which will now
+      hit the new `OutdatedAppScreen` instead of corrupting the db, but is
+      still worth updating).
 
-    **v1.5.0 — Packaging & sync infra.** Distribution reach plus the two
+22. **v1.5.0: live-preview markdown editing, text highlighting, custom/
+    gradient note colors** — DONE:
+    - **Live-preview markdown editing** (`lib/markdown_editing_controller.dart`,
+      `lib/markdown_format.dart`): notes are still plain markdown end to end —
+      no new storage format — but the editor now renders that markdown styled
+      (bold actually bold, headings actually sized, highlights actually
+      colored) instead of showing raw syntax characters, Obsidian/Typora
+      "live preview" style. `MarkdownEditingController extends
+      TextEditingController` and overrides `buildTextSpan`: syntax markers
+      (`**`, `#`, `- `, `==...==^color`) stay real characters in the buffer
+      (so cursor/tap hit-testing never desyncs from the text) but are shrunk
+      to a near-invisible sliver on any line the cursor isn't on, and shown
+      small-and-faded on the line it is on. `markdown_format.dart` supplies
+      the text-selection-toolbar actions (`toggleBold`, `toggleItalic`,
+      `applyHeading`, `toggleBulletList`) that apply/remove those markers
+      around a selection — idempotent (apply Bold to already-bold text,
+      get plain text back). This only covers what those actions produce
+      (heading/bold/italic/bullet/highlight); richer markdown (links, code
+      blocks, blockquotes, tables, images) still renders as literal text
+      here — the full-fidelity "Preview" toggle (complete `flutter_markdown`
+      render) still exists for that.
+    - **Text highlighting** (`lib/markdown_highlight.dart`): select text →
+      apply one of 5 preset pastel colors (yellow/green/blue/pink/orange,
+      chosen pastel so they read as "highlighted" regardless of the app's
+      dark theme) via `==highlighted text==^colorkey` inline markdown syntax.
+      `HighlightSyntax`/`HighlightBuilder` render it as a colored rounded
+      background in the full markdown `Preview` mode; `previewText()`
+      (`format.dart`) strips the delimiters (keeping the inner text) for
+      card/sidebar previews; `MarkdownEditingController` renders it live in
+      the editor itself, same as bold/headings.
+    - **Custom hex color picker + gradient note colors** (`theme.dart`, new
+      `flutter_colorpicker` dependency): the note-color picker (item 8) now
+      also offers an HSV hex input, not just the fixed swatch set — any
+      arbitrary color, on both desktop and Android. Colors can additionally
+      be a 2-3 stop gradient. `Note.color` (`notally_core`) stays a plain
+      `String` — a single hex (`"#2a2a2a"`) for a solid color, or
+      `"grad:#hex,#hex"` for a gradient — so this needed **no schema
+      migration and no sync/crypto changes**: it's still just an opaque
+      string threaded through the existing encrypted payload. `theme.dart`
+      adds `hexFromColor`/`isGradientColor`/`gradientStopHexes`/
+      `encodeGradient`/`noteBaseColors`/`noteBackgroundDecoration` as the
+      shared helpers UI code renders through.
+    - Bundled with the item 21 downgrade-guard fix into a single v1.5.0
+      release since both were sitting uncommitted together; not otherwise
+      related. `flutter analyze` clean, all 41 tests pass (incl. the new
+      downgrade-guard regression test) at release time.
+
+23. **TODO — versioned roadmap, grouped by dependency and theme:**
+
+    **v1.6.0 — Packaging & sync infra.** Distribution reach plus the two
     remaining infra gaps.
     - **Linux .deb/.rpm packages**: add `fpm` to `scripts/package-linux.sh` to
       produce `.deb` (Debian/Ubuntu) and `.rpm` (Fedora/openSUSE) from the same
@@ -358,34 +460,19 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       long-tail compositors.
     - **Server optional WebSocket push** (instead of polling every 10s).
 
-    **v1.6.0 — Editing & customization.** Editor toolbar and color-picker
-    surface work, bundled since they touch the same UI.
+    **v1.7.0 — Editing & customization.** Remaining editor-toolbar and
+    font-surface work — the highlight/custom-color/live-preview items
+    originally planned here shipped early in v1.5.0 (item 22).
     - **Collapse note editor toolbar into an overflow menu**: the note editor
       header is currently a row of individual icon buttons (self-destruct
       timer, pin, color picker, preview toggle, archive, delete — see
       screenshot from the owner) that gets cluttered, especially on mobile.
       Move the less-frequently-used actions behind a three-dot overflow menu
       instead of showing every action as its own always-visible icon.
-    - **WYSIWYG formatting mode (alternative to raw markdown)**: today notes
-      are edited as raw markdown text (typing `#`, `-`, etc. by hand). Add a
-      mode where selecting a piece of text surfaces a set of visual actions
-      (heading size, bold, list, etc.) that apply the equivalent markdown
-      under the hood — same underlying format, no need to know markdown
-      syntax to use it.
-    - **Text highlighting**: select text and apply a highlight in a choice of
-      colors, similar to the existing note color picker but scoped to a text
-      selection rather than the whole note.
-    - **Custom note colors (hex picker)**: the existing color picker (item 8)
-      only offers a fixed swatch set. Add a hex color input (on both Android
-      and desktop) so a note can be set to any arbitrary color, not just the
-      presets.
-    - **Gradient note colors**: extend note coloring beyond a single flat
-      color to support a gradient (two or more stops) as the note's
-      background.
     - **Font selection**: let the user change the font used for note text
       (editor + rendered preview).
 
-    **v1.7.0 — Personal knowledge base.** Both purely local/client-side, turn
+    **v1.8.0 — Personal knowledge base.** Both purely local/client-side, turn
     the app from a note pile into a lightweight PKB.
     - **Backlinks / `[[wiki-links]]` between notes**: let notes reference each
       other by title (`[[Note Title]]`), resolved and rendered client-side
@@ -396,7 +483,7 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       locally (Drift) so a note can be time-traveled/undone independently of
       the trash/archive flow. Purely local, no server involvement.
 
-    **v1.8.0 — New surfaces.** Bigger, more independent features — new
+    **v1.9.0 — New surfaces.** Bigger, more independent features — new
     platform surfaces rather than core app changes.
     - **Home-screen Android widget**: a widget for quick note creation
       (and/or showing pinned notes) without opening the app.
@@ -420,6 +507,11 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       Android SDK was available on the dev machine it was built on.
     - **Enable GitHub Discussions** in repo settings (Settings → Features) —
       the issue template `config.yml` already links to it.
+    - **Guard against unsynced server/client version drift**: make sure a
+      client and server running mismatched versions of each other (e.g. an
+      old client against a newer server schema, or vice versa) can't corrupt
+      state or crash — audit `X-Librenotes-Api-Version` handling and the
+      sync/wire-format assumptions in `notally_core` for gaps.
 
 ## Conventions
 

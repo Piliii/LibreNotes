@@ -14,6 +14,7 @@ import 'sync/sync_service.dart';
 import 'theme.dart';
 import 'ui/home_screen.dart';
 import 'ui/locked_recovery_screen.dart';
+import 'ui/outdated_app_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +22,12 @@ Future<void> main() async {
   // Forces any pending schema migration to run now, so the local DEK is
   // guaranteed to be in the keyring (or we already know it can't be) before
   // deciding whether to boot straight into the app or into recovery.
-  await db.warmUp();
+  try {
+    await db.warmUp();
+  } on DatabaseTooNewException catch (e) {
+    runApp(_OutdatedApp(onDiskVersion: e.onDisk, supportedVersion: e.supported));
+    return;
+  }
 
   try {
     final crypto = await LocalKeyManager.resolve(db);
@@ -69,6 +75,26 @@ class _RecoveryApp extends StatelessWidget {
       home: LockedRecoveryScreen(
         db: db,
         onRecovered: (crypto) => _launch(db, crypto),
+      ),
+    );
+  }
+}
+
+class _OutdatedApp extends StatelessWidget {
+  const _OutdatedApp({required this.onDiskVersion, required this.supportedVersion});
+
+  final int onDiskVersion;
+  final int supportedVersion;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'LibreNotes',
+      debugShowCheckedModeBanner: false,
+      theme: buildNotallyTheme(),
+      home: OutdatedAppScreen(
+        onDiskVersion: onDiskVersion,
+        supportedVersion: supportedVersion,
       ),
     );
   }

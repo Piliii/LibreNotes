@@ -1,5 +1,7 @@
+import 'dart:io' show Platform;
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -14,7 +16,9 @@ import 'sync_settings_page.dart';
 
 enum _DesktopLayout { sidebar, tabs }
 
-enum _NoteAction { pin, color, archive }
+enum _NoteAction { pin, timer, archive }
+
+enum _SidebarMenuAction { layout, archive, importExport, refresh }
 
 enum _BulkAction { archive, pin, unpin }
 
@@ -42,6 +46,49 @@ class _HomeScreenState extends State<HomeScreen> {
   Set<String> _selectedIds = {};
   String? _lastSelectedId;
 
+  /// User-dragged order of unpinned note ids in the desktop tabs layout.
+  /// Pinned notes are never in here — they stay fixed, always first (see
+  /// [_orderedForTabs]). Local-only (like `pref.layout`), not synced.
+  List<String> _tabOrder = [];
+
+  // ---- Modifier-key tracking for ctrl/shift-click multi-select -------------
+  //
+  // `_handleNoteSelect` below needs to know "is Ctrl/Shift held right now".
+  // Flutter's `HardwareKeyboard.instance.isControlPressed` answers that from
+  // a global down/up-paired state — but on Linux/GTK a lost KeyUpEvent (seen
+  // in the wild after introducing tab drag-and-drop; Flutter's own keyboard
+  // tracker throws "KeyDownEvent... physical key is already pressed" when
+  // this happens) can leave a modifier stuck "held" indefinitely, silently
+  // turning every later plain click into a phantom ctrl-click. These fields
+  // track the same down/up events ourselves, but treat "held" as expiring
+  // after [_modifierStaleAfter] with no fresh KeyDownEvent — a real
+  // ctrl/shift-click is brief, so this never affects genuine use, but it
+  // bounds a stuck-modifier bug to a few seconds instead of the rest of the
+  // session. It does not fix the underlying desync, only its blast radius.
+  DateTime? _ctrlDownAt;
+  DateTime? _metaDownAt;
+  DateTime? _shiftDownAt;
+  static const _modifierStaleAfter = Duration(seconds: 10);
+
+  bool _isHeld(DateTime? since) =>
+      since != null && DateTime.now().difference(since) < _modifierStaleAfter;
+
+  bool _trackModifierKeys(KeyEvent event) {
+    final physical = event.physicalKey;
+    final value = event is KeyUpEvent ? null : DateTime.now();
+    if (physical == PhysicalKeyboardKey.controlLeft ||
+        physical == PhysicalKeyboardKey.controlRight) {
+      _ctrlDownAt = value;
+    } else if (physical == PhysicalKeyboardKey.metaLeft ||
+        physical == PhysicalKeyboardKey.metaRight) {
+      _metaDownAt = value;
+    } else if (physical == PhysicalKeyboardKey.shiftLeft ||
+        physical == PhysicalKeyboardKey.shiftRight) {
+      _shiftDownAt = value;
+    }
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -51,22 +98,72 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       if (MediaQuery.sizeOf(context).width >= _desktopBreakpoint) _newNote();
     });
+    HardwareKeyboard.instance.addHandler(_trackModifierKeys);
+    if (!kIsWeb && Platform.isLinux) {
+      HardwareKeyboard.instance.addHandler(_handleKey);
+    }
   }
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_trackModifierKeys);
+    if (!kIsWeb && Platform.isLinux) {
+      HardwareKeyboard.instance.removeHandler(_handleKey);
+    }
     _searchController.dispose();
     super.dispose();
+  }
+
+  bool _handleKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (!HardwareKeyboard.instance.isControlPressed) return false;
+    if (event.logicalKey == LogicalKeyboardKey.keyN) {
+      _newNote();
+      return true;
+    }
+    return false;
   }
 
   Future<void> _loadPrefs() async {
     final layoutStr = await widget.repo.kvGet('pref.layout');
     final widthStr = await widget.repo.kvGet('pref.sidebarWidth');
+    final tabOrderStr = await widget.repo.kvGet('pref.tabOrder');
     if (!mounted) return;
     setState(() {
       if (layoutStr == 'tabs') _layout = _DesktopLayout.tabs;
       if (widthStr != null) _sidebarWidth = double.tryParse(widthStr) ?? 280;
+      if (tabOrderStr != null && tabOrderStr.isNotEmpty) {
+        _tabOrder = tabOrderStr.split(',');
+      }
     });
+  }
+
+  /// Splits the live (pinned-first, then most-recently-edited) [notes] list
+  /// into pinned notes (left exactly as the query ordered them — always
+  /// first, never draggable) and the rest arranged per [_tabOrder]. Any
+  /// unpinned note not yet in [_tabOrder] (new, or never dragged) is
+  /// appended at the end in its query order, same as a new browser tab.
+  ({List<NoteRow> pinned, List<NoteRow> rest}) _orderedForTabs(
+      List<NoteRow> notes) {
+    final pinned = notes.where((n) => n.pinned).toList();
+    final byId = {for (final n in notes.where((n) => !n.pinned)) n.id: n};
+    final rest = <NoteRow>[];
+    for (final id in _tabOrder) {
+      final n = byId.remove(id);
+      if (n != null) rest.add(n);
+    }
+    rest.addAll(byId.values);
+    return (pinned: pinned, rest: rest);
+  }
+
+  void _reorderTab(String draggedId, List<String> currentOrder,
+      {required String targetId}) {
+    if (draggedId == targetId) return;
+    final order = List<String>.from(currentOrder)..remove(draggedId);
+    final targetIndex = order.indexOf(targetId);
+    order.insert(targetIndex == -1 ? order.length : targetIndex, draggedId);
+    setState(() => _tabOrder = order);
+    widget.repo.kvSet('pref.tabOrder', order.join(','));
   }
 
   Future<void> _newNote() async {
@@ -79,9 +176,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _handleNoteSelect(String id, List<NoteRow> orderedNotes) {
-    final ctrl = HardwareKeyboard.instance.isControlPressed ||
-        HardwareKeyboard.instance.isMetaPressed;
-    final shift = HardwareKeyboard.instance.isShiftPressed;
+    final ctrl = _isHeld(_ctrlDownAt) || _isHeld(_metaDownAt);
+    final shift = _isHeld(_shiftDownAt);
 
     if (shift && _lastSelectedId != null) {
       final i1 = orderedNotes.indexWhere((n) => n.id == _lastSelectedId);
@@ -273,24 +369,48 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: notes.isEmpty
                     ? const SizedBox()
-                    : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: notes
-                              .map((n) => _NoteTab(
-                                    note: n,
-                                    selected: n.id == selected,
-                                    onTap: () => setState(() {
-                                      _selectedId = n.id;
-                                      _isNewNote = false;
-                                    }),
-                                    onSecondaryTap: (pos) =>
-                                        _showDesktopContextMenu(
-                                            context, n, pos),
-                                  ))
-                              .toList(),
-                        ),
-                      ),
+                    : Builder(builder: (context) {
+                        final tabs = _orderedForTabs(notes);
+                        final restIds =
+                            tabs.rest.map((n) => n.id).toList();
+                        void selectTab(String id) => setState(() {
+                              _selectedId = id;
+                              _isNewNote = false;
+                            });
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              // Pinned tabs are always first and never
+                              // draggable — they're not wrapped in
+                              // Draggable/DragTarget at all.
+                              for (final n in tabs.pinned)
+                                _NoteTab(
+                                  key: ValueKey(n.id),
+                                  note: n,
+                                  selected: n.id == selected,
+                                  onTap: () => selectTab(n.id),
+                                  onSecondaryTap: (pos) =>
+                                      _showDesktopContextMenu(
+                                          context, n, pos),
+                                ),
+                              for (final n in tabs.rest)
+                                _DraggableNoteTab(
+                                  key: ValueKey(n.id),
+                                  note: n,
+                                  selected: n.id == selected,
+                                  onTap: () => selectTab(n.id),
+                                  onSecondaryTap: (pos) =>
+                                      _showDesktopContextMenu(
+                                          context, n, pos),
+                                  onDroppedOnto: (draggedId) =>
+                                      _reorderTab(draggedId, restIds,
+                                          targetId: n.id),
+                                ),
+                            ],
+                          ),
+                        );
+                      }),
               ),
               Container(width: 1, color: NotallyColors.border),
               IconButton(
@@ -300,9 +420,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 iconSize: 20,
                 onPressed: _newNote,
               ),
-              _ArchiveButton(repo: widget.repo, onChanged: widget.sync.nudge),
-              _ImportExportButton(repo: widget.repo),
-              _RefreshButton(sync: widget.sync),
               _SyncButton(sync: widget.sync),
             ],
           ),
@@ -459,11 +576,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onPressed: () =>
                                     setState(() => _mobileSearchActive = true),
                               ),
-                              _ArchiveButton(
+                              _MobileMoreButton(
                                   repo: widget.repo,
                                   onChanged: widget.sync.nudge),
-                              _ImportExportButton(repo: widget.repo),
-                              _RefreshButton(sync: widget.sync),
                               _SyncButton(sync: widget.sync),
                             ],
                           ),
@@ -651,47 +766,76 @@ class _HomeScreenState extends State<HomeScreen> {
                         horizontal: 20, vertical: 14),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: kNoteColorHexes.map((hex) {
-                        final color = colorFromHex(hex);
-                        final selected = note.color == hex;
-                        return GestureDetector(
-                          onTap: () async {
-                            Navigator.pop(sheetCtx);
-                            await widget.repo
-                                .updateContent(note.id, color: hex);
-                            widget.sync.nudge();
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 160),
-                            width: selected ? 34 : 30,
-                            height: selected ? 34 : 30,
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: selected
-                                    ? NotallyColors.accent
-                                    : Colors.white24,
-                                width: selected ? 2.5 : 1,
+                      children: [
+                        ...kNoteColorHexes.map((hex) {
+                          final color = colorFromHex(hex);
+                          final selected = note.color == hex;
+                          return GestureDetector(
+                            onTap: () async {
+                              Navigator.pop(sheetCtx);
+                              await widget.repo
+                                  .updateContent(note.id, color: hex);
+                              widget.sync.nudge();
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 160),
+                              width: selected ? 34 : 30,
+                              height: selected ? 34 : 30,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: selected
+                                      ? NotallyColors.accent
+                                      : Colors.white24,
+                                  width: selected ? 2.5 : 1,
+                                ),
+                                boxShadow: selected
+                                    ? [
+                                        BoxShadow(
+                                          color: NotallyColors.accent
+                                              .withValues(alpha: 0.45),
+                                          blurRadius: 8,
+                                          spreadRadius: 1,
+                                        ),
+                                      ]
+                                    : null,
                               ),
-                              boxShadow: selected
-                                  ? [
-                                      BoxShadow(
-                                        color: NotallyColors.accent
-                                            .withValues(alpha: 0.45),
-                                        blurRadius: 8,
-                                        spreadRadius: 1,
-                                      ),
-                                    ]
+                              child: selected
+                                  ? const Icon(Icons.check,
+                                      size: 15, color: Colors.white70)
                                   : null,
                             ),
-                            child: selected
-                                ? const Icon(Icons.check,
-                                    size: 15, color: Colors.white70)
-                                : null,
+                          );
+                        }),
+                        // Custom hex / gradient — the fixed presets above
+                        // cover the fast path, this opens the full picker.
+                        GestureDetector(
+                          onTap: () async {
+                            Navigator.pop(sheetCtx);
+                            final result = await showDialog<String>(
+                              context: context,
+                              builder: (_) =>
+                                  NoteColorPickerDialog(current: note.color),
+                            );
+                            if (result == null || !mounted) return;
+                            await widget.repo
+                                .updateContent(note.id, color: result);
+                            widget.sync.nudge();
+                          },
+                          child: Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: Colors.white24, width: 1),
+                            ),
+                            child: const Icon(Icons.more_horiz,
+                                size: 16, color: Colors.white70),
                           ),
-                        );
-                      }).toList(),
+                        ),
+                      ],
                     ),
                   ),
                   Divider(
@@ -712,6 +856,33 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.pop(sheetCtx);
                       await widget.repo
                           .updateContent(note.id, pinned: !note.pinned);
+                      widget.sync.nudge();
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      note.expiresAt != null
+                          ? Icons.hourglass_bottom
+                          : Icons.hourglass_empty,
+                      color: NotallyColors.textFaint,
+                    ),
+                    title: Text(
+                      note.expiresAt != null
+                          ? 'Change self-destruct timer'
+                          : 'Self-destruct timer',
+                      style: const TextStyle(
+                          color: NotallyColors.textPrimary),
+                    ),
+                    onTap: () async {
+                      Navigator.pop(sheetCtx);
+                      final result = await showDialog<NoteExpiryResult>(
+                        context: context,
+                        builder: (_) =>
+                            NoteExpiryDialog(current: note.expiresAt),
+                      );
+                      if (result == null || !mounted) return;
+                      await widget.repo
+                          .setExpiry(note.id, result.at?.millisecondsSinceEpoch);
                       widget.sync.nudge();
                     },
                   ),
@@ -763,9 +934,16 @@ class _HomeScreenState extends State<HomeScreen> {
             label: note.pinned ? 'Unpin' : 'Pin',
           ),
         ),
-        const PopupMenuItem(
-          value: _NoteAction.color,
-          child: _MenuRow(icon: Icons.colorize, label: 'Change color'),
+        PopupMenuItem(
+          value: _NoteAction.timer,
+          child: _MenuRow(
+            icon: note.expiresAt != null
+                ? Icons.hourglass_bottom
+                : Icons.hourglass_empty,
+            label: note.expiresAt != null
+                ? 'Change self-destruct timer'
+                : 'Self-destruct timer',
+          ),
         ),
         const PopupMenuDivider(),
         const PopupMenuItem(
@@ -779,14 +957,14 @@ class _HomeScreenState extends State<HomeScreen> {
       case _NoteAction.pin:
         await widget.repo.updateContent(note.id, pinned: !note.pinned);
         widget.sync.nudge();
-      case _NoteAction.color:
+      case _NoteAction.timer:
         if (!context.mounted) return;
-        final hex = await showDialog<String>(
+        final result = await showDialog<NoteExpiryResult>(
           context: context,
-          builder: (_) => NoteColorPickerDialog(current: note.color),
+          builder: (_) => NoteExpiryDialog(current: note.expiresAt),
         );
-        if (hex != null) {
-          await widget.repo.updateContent(note.id, color: hex);
+        if (result != null) {
+          await widget.repo.setExpiry(note.id, result.at?.millisecondsSinceEpoch);
           widget.sync.nudge();
         }
       case _NoteAction.archive:
@@ -850,21 +1028,18 @@ class _Sidebar extends StatelessWidget {
                   children: [
                     const Expanded(
                       child: Text('Notes',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                               color: NotallyColors.textBright,
                               fontSize: 24,
                               fontWeight: FontWeight.bold)),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.view_headline_outlined),
-                      tooltip: 'Switch to tabs layout',
-                      color: NotallyColors.textFaint,
-                      iconSize: 20,
-                      onPressed: onLayoutToggle,
+                    _SidebarMoreButton(
+                      repo: repo,
+                      sync: sync,
+                      onLayoutToggle: onLayoutToggle,
                     ),
-                    _ArchiveButton(repo: repo, onChanged: sync.nudge),
-                    _ImportExportButton(repo: repo),
-                    _RefreshButton(sync: sync),
                     _SyncButton(sync: sync),
                   ],
                 ),
@@ -1057,12 +1232,23 @@ class _NoteListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rawBase = colorFromHex(note.color);
-    final base = isMultiSelected
-        ? Color.lerp(rawBase, NotallyColors.accent, 0.12)!
-        : rawBase;
-    final lighter = Color.lerp(base, Colors.white, 0.06)!;
-    final darker = Color.lerp(base, Colors.black, 0.08)!;
+    final bases = noteBaseColors(note.color).map((c) =>
+        isMultiSelected ? Color.lerp(c, NotallyColors.accent, 0.12)! : c);
+    final List<Color> gradientColors;
+    final List<double> gradientStops;
+    if (bases.length > 1) {
+      gradientColors = bases.toList();
+      gradientStops =
+          bases.length == 2 ? const [0.0, 1.0] : const [0.0, 0.5, 1.0];
+    } else {
+      final base = bases.first;
+      gradientColors = [
+        Color.lerp(base, Colors.white, 0.06)!,
+        base,
+        Color.lerp(base, Colors.black, 0.08)!,
+      ];
+      gradientStops = const [0.0, 0.5, 1.0];
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -1077,8 +1263,8 @@ class _NoteListItem extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [lighter, base, darker],
-              stops: const [0.0, 0.5, 1.0],
+              colors: gradientColors,
+              stops: gradientStops,
             ),
             borderRadius: BorderRadius.circular(8),
             border: Border(
@@ -1337,6 +1523,7 @@ class _MultiSelectPanel extends StatelessWidget {
 
 class _NoteTab extends StatelessWidget {
   const _NoteTab({
+    super.key,
     required this.note,
     required this.selected,
     required this.onTap,
@@ -1403,6 +1590,65 @@ class _NoteTab extends StatelessWidget {
   }
 }
 
+/// Wraps [_NoteTab] as both a drag source and a drop target, so dragging one
+/// unpinned tab onto another reorders them — this is only ever used for
+/// unpinned tabs (see [_HomeScreenState._orderedForTabs]/[_desktopTabs]);
+/// pinned tabs render as a plain [_NoteTab] with no drag behavior at all, so
+/// they can neither be dragged nor be dropped onto.
+class _DraggableNoteTab extends StatelessWidget {
+  const _DraggableNoteTab({
+    super.key,
+    required this.note,
+    required this.selected,
+    required this.onTap,
+    required this.onDroppedOnto,
+    this.onSecondaryTap,
+  });
+
+  final NoteRow note;
+  final bool selected;
+  final VoidCallback onTap;
+  final void Function(Offset)? onSecondaryTap;
+
+  /// Called with the dragged note's id when another tab is dropped onto
+  /// this one.
+  final void Function(String draggedId) onDroppedOnto;
+
+  @override
+  Widget build(BuildContext context) {
+    final tab = _NoteTab(
+      note: note,
+      selected: selected,
+      onTap: onTap,
+      onSecondaryTap: onSecondaryTap,
+    );
+    return DragTarget<String>(
+      onWillAcceptWithDetails: (details) => details.data != note.id,
+      onAcceptWithDetails: (details) => onDroppedOnto(details.data),
+      builder: (context, candidateData, rejectedData) {
+        return Container(
+          decoration: candidateData.isNotEmpty
+              ? const BoxDecoration(
+                  border: Border(
+                      left: BorderSide(color: NotallyColors.accent, width: 2)),
+                )
+              : null,
+          child: Draggable<String>(
+            data: note.id,
+            axis: Axis.horizontal,
+            feedback: Material(
+              color: Colors.transparent,
+              child: Opacity(opacity: 0.85, child: tab),
+            ),
+            childWhenDragging: Opacity(opacity: 0.3, child: tab),
+            child: tab,
+          ),
+        );
+      },
+    );
+  }
+}
+
 // --- Mobile card ------------------------------------------------------------
 
 class _NoteCard extends StatefulWidget {
@@ -1449,9 +1695,25 @@ class _NoteCardState extends State<_NoteCard>
 
   @override
   Widget build(BuildContext context) {
-    final base = colorFromHex(widget.note.color);
-    final lighter = Color.lerp(base, Colors.white, 0.07)!;
-    final darker = Color.lerp(base, Colors.black, 0.10)!;
+    final bases = noteBaseColors(widget.note.color);
+    final List<Color> gradientColors;
+    final List<double> gradientStops;
+    final Color shadowTint;
+    if (bases.length > 1) {
+      gradientColors = bases;
+      gradientStops =
+          bases.length == 2 ? const [0.0, 1.0] : const [0.0, 0.45, 1.0];
+      shadowTint = bases[bases.length ~/ 2];
+    } else {
+      final base = bases.first;
+      gradientColors = [
+        Color.lerp(base, Colors.white, 0.07)!,
+        base,
+        Color.lerp(base, Colors.black, 0.10)!,
+      ];
+      gradientStops = const [0.0, 0.45, 1.0];
+      shadowTint = base;
+    }
 
     return FadeTransition(
       opacity: _opacity,
@@ -1466,8 +1728,8 @@ class _NoteCardState extends State<_NoteCard>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          stops: const [0.0, 0.45, 1.0],
-          colors: [lighter, base, darker],
+          stops: gradientStops,
+          colors: gradientColors,
         ),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
@@ -1482,7 +1744,7 @@ class _NoteCardState extends State<_NoteCard>
             offset: const Offset(0, 5),
           ),
           BoxShadow(
-            color: base.withValues(alpha: 0.30),
+            color: shadowTint.withValues(alpha: 0.30),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -1617,74 +1879,120 @@ class _MenuRow extends StatelessWidget {
   }
 }
 
-/// Opens the archive screen. Trash is accessible from inside the archive page.
-class _ArchiveButton extends StatelessWidget {
-  const _ArchiveButton({required this.repo, this.onChanged});
+/// Collapses the less-frequently-used sidebar header actions (layout toggle,
+/// archive, import/export, manual refresh) behind one overflow button so the
+/// header doesn't run out of room and wrap the "Notes" title on a narrow
+/// sidebar.
+class _SidebarMoreButton extends StatelessWidget {
+  const _SidebarMoreButton({
+    required this.repo,
+    required this.sync,
+    required this.onLayoutToggle,
+  });
 
   final NotesRepository repo;
-  final VoidCallback? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: 'Archive',
-      color: NotallyColors.textFaint,
-      iconSize: 22,
-      icon: const Icon(Icons.archive_outlined),
-      onPressed: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ArchivePage(repo: repo, onChanged: onChanged),
-        ),
-      ),
-    );
-  }
-}
-
-/// Opens the markdown import/export screen.
-class _ImportExportButton extends StatelessWidget {
-  const _ImportExportButton({required this.repo});
-
-  final NotesRepository repo;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: 'Import / export',
-      color: NotallyColors.textFaint,
-      iconSize: 22,
-      icon: const Icon(Icons.import_export),
-      onPressed: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ImportExportPage(repo: repo),
-        ),
-      ),
-    );
-  }
-}
-
-/// Manual "pull now" button.
-class _RefreshButton extends StatelessWidget {
-  const _RefreshButton({required this.sync});
-
   final SyncService sync;
+  final VoidCallback onLayoutToggle;
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<SyncStatus>(
       valueListenable: sync.status,
       builder: (context, status, __) {
-        final ready = status.state != SyncState.notConfigured &&
+        final syncReady = status.state != SyncState.notConfigured &&
             status.state != SyncState.locked;
-        if (!ready) return const SizedBox.shrink();
         final syncing = status.state == SyncState.syncing;
-        return IconButton(
-          tooltip: 'Refresh now',
-          color: NotallyColors.textFaint,
-          iconSize: 22,
-          icon: const Icon(Icons.refresh),
-          onPressed: syncing ? null : sync.syncNow,
+        return PopupMenuButton<_SidebarMenuAction>(
+          tooltip: 'More',
+          icon: const Icon(Icons.more_vert,
+              color: NotallyColors.textFaint, size: 22),
+          onSelected: (action) {
+            switch (action) {
+              case _SidebarMenuAction.layout:
+                onLayoutToggle();
+              case _SidebarMenuAction.archive:
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) =>
+                      ArchivePage(repo: repo, onChanged: sync.nudge),
+                ));
+              case _SidebarMenuAction.importExport:
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => ImportExportPage(repo: repo),
+                ));
+              case _SidebarMenuAction.refresh:
+                sync.syncNow();
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: _SidebarMenuAction.layout,
+              child: _MenuRow(
+                  icon: Icons.view_headline_outlined,
+                  label: 'Switch to tabs layout'),
+            ),
+            const PopupMenuItem(
+              value: _SidebarMenuAction.archive,
+              child: _MenuRow(icon: Icons.archive_outlined, label: 'Archive'),
+            ),
+            const PopupMenuItem(
+              value: _SidebarMenuAction.importExport,
+              child: _MenuRow(
+                  icon: Icons.import_export, label: 'Import / export'),
+            ),
+            if (syncReady)
+              PopupMenuItem(
+                enabled: !syncing,
+                value: _SidebarMenuAction.refresh,
+                child:
+                    const _MenuRow(icon: Icons.refresh, label: 'Refresh now'),
+              ),
+          ],
         );
       },
+    );
+  }
+}
+
+enum _MobileMoreAction { archive, importExport }
+
+/// Collapses the less-frequently-used mobile header actions (archive,
+/// import/export) behind one overflow button, mirroring
+/// [_SidebarMoreButton] on desktop.
+class _MobileMoreButton extends StatelessWidget {
+  const _MobileMoreButton({required this.repo, this.onChanged});
+
+  final NotesRepository repo;
+  final VoidCallback? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_MobileMoreAction>(
+      tooltip: 'More',
+      icon: const Icon(Icons.more_vert,
+          color: NotallyColors.textFaint, size: 22),
+      onSelected: (action) {
+        switch (action) {
+          case _MobileMoreAction.archive:
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ArchivePage(repo: repo, onChanged: onChanged),
+            ));
+          case _MobileMoreAction.importExport:
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ImportExportPage(repo: repo),
+            ));
+        }
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: _MobileMoreAction.archive,
+          child: _MenuRow(icon: Icons.archive_outlined, label: 'Archive'),
+        ),
+        const PopupMenuItem(
+          value: _MobileMoreAction.importExport,
+          child:
+              _MenuRow(icon: Icons.import_export, label: 'Import / export'),
+        ),
+      ],
     );
   }
 }

@@ -10,7 +10,10 @@ class Note {
   String title;
   String body; // markdown
   bool pinned;
-  String color; // hex, e.g. "#2a2a2a"
+  /// Either a single hex color ("#2a2a2a") or, for a gradient, "grad:"
+  /// followed by 2-3 comma-separated hex stops ("grad:#2a2a2a,#20353d").
+  /// Opaque to everything except the client UI layer that renders it.
+  String color;
   int createdAt; // ms since epoch
   int updatedAt; // ms since epoch
 

@@ -27,6 +27,10 @@ String previewText(String body) {
         RegExp(r'\[([^\]]*)\]\([^)]*\)'),
         (m) => m.group(1) ?? '',
       )
+      .replaceAllMapped(
+        RegExp(r'==(.+?)==\^\w+'),
+        (m) => m.group(1) ?? '',
+      )
       .replaceAll(RegExp(r'^#{1,6}\s+', multiLine: true), '')
       .replaceAll(RegExp(r'[*_`>~]'), '')
       .replaceAll(RegExp(r'^\s*[-+]\s+', multiLine: true), '• ')
