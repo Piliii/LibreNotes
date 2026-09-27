@@ -119,8 +119,23 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
   to the self-hosted server. Release builds are **arm64-v8a only** (`ndk
   abiFilters` in `android/app/build.gradle.kts`) and ship **release, not debug**.
   The `INTERNET` permission is declared in the *main* manifest (not just debug),
-  or release sync silently fails. Release still uses the debug signing config —
-  F-Droid re-signs, so fine for F-Droid; set a real keystore for direct APKs.
+  or release sync silently fails. Release still uses the debug signing config
+  (`android/app/build.gradle.kts`) — harmless for F-Droid itself, since F-Droid
+  always builds from source and re-signs with its own repo key regardless of
+  what signs the build. It does bite the **GitHub Release APK**, though:
+  `release.yml`'s runners don't persist a keystore, so every tagged CI build
+  mints a fresh, unique debug key. Consequence, confirmed 2026-09-28 against a
+  real device: a phone with LibreNotes installed from a GitHub Release APK (or
+  any non-F-Droid build) will *never* show F-Droid updates as installable —
+  F-Droid's client falls back to a plain "Open" button and reports "no
+  versions with compatible signer" in the version list, since Android refuses
+  to let F-Droid overwrite an app signed with a different certificate. Same
+  problem strikes direct-APK-to-direct-APK upgrades between releases, since
+  each GitHub build's debug key differs from the last. Only fix on an affected
+  device is uninstall + reinstall from the desired source. A real fix needs a
+  dedicated, persisted release keystore (generated once, stored as a GitHub
+  Actions secret, reused by every CI run) — not done yet; see the roadmap's
+  "not version-gated" list.
 - **F-Droid status:** LIVE. App is published in the official F-Droid repo at
   `https://f-droid.org/packages/dev.librenotes.app/` — installable via the
   F-Droid client, no manual APK download needed. Fastlane metadata +
@@ -427,7 +442,36 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       related. `flutter analyze` clean, all 41 tests pass (incl. the new
       downgrade-guard regression test) at release time.
 
-23. **TODO — versioned roadmap, grouped by dependency and theme:**
+23. **Mobile toolbar/header decluttering** — DONE:
+    - **Note editor toolbar**: removed the self-destruct-timer (hourglass) and
+      pin icons from the mobile note editor's icon bar (`note_editor.dart`) —
+      they were mobile-only (desktop never showed them, relying on its
+      right-click context menu instead), and duplicated what the note card's
+      long-press menu already offered. Deleted the now-dead `NoteEditor.desktop`
+      flag and the `_pinned`/`_pickExpiry`/`_togglePin` state that only existed
+      to drive those two buttons; the two `NoteEditor(... desktop: true)` call
+      sites in `home_screen.dart` were updated accordingly. The remaining
+      toolbar (color picker, preview toggle, archive, delete) is unchanged.
+    - **Mobile long-press sheet gained self-destruct**: `_showMobileNoteActions`
+      (the bottom sheet from long-pressing a card) previously only had
+      Pin/Archive/Move-to-Trash — it had **no** self-destruct entry at all, so
+      removing the editor's hourglass icon would have made the timer
+      unreachable on mobile. Added a "Self-destruct timer"/"Change
+      self-destruct timer" `ListTile` (opens the same `NoteExpiryDialog` the
+      desktop context menu uses) between Pin and Archive, so the feature stays
+      reachable on mobile through the card menu instead of the editor.
+    - **Home screen mobile header**: removed the standalone manual "Refresh
+      now" icon (`_RefreshButton`) — the sync loop still polls automatically,
+      this only removed the explicit manual-pull affordance. Collapsed the
+      separate Archive and Import/Export icon buttons into a single vertical
+      3-dot overflow menu (new `_MobileMoreButton`, `Icons.more_vert`),
+      mirroring the existing desktop sidebar's `_SidebarMoreButton` pattern.
+      Mobile header is now: Search → 3-dot menu (Archive, Import/export) →
+      sync status icon. `_ArchiveButton`/`_ImportExportButton`/`_RefreshButton`
+      were deleted as dead code once nothing referenced them.
+    - `flutter analyze` clean across the whole app after each change.
+
+24. **TODO — versioned roadmap, grouped by dependency and theme:**
 
     **v1.6.0 — Packaging & sync infra.** Distribution reach plus the two
     remaining infra gaps.
@@ -463,12 +507,12 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
     **v1.7.0 — Editing & customization.** Remaining editor-toolbar and
     font-surface work — the highlight/custom-color/live-preview items
     originally planned here shipped early in v1.5.0 (item 22).
-    - **Collapse note editor toolbar into an overflow menu**: the note editor
-      header is currently a row of individual icon buttons (self-destruct
-      timer, pin, color picker, preview toggle, archive, delete — see
-      screenshot from the owner) that gets cluttered, especially on mobile.
-      Move the less-frequently-used actions behind a three-dot overflow menu
-      instead of showing every action as its own always-visible icon.
+    - **Collapse the rest of the note editor toolbar into an overflow menu**:
+      item 23 already removed the self-destruct-timer and pin icons from the
+      mobile editor toolbar (redundant with the long-press card menu). What's
+      left — color picker, preview toggle, archive, delete — is still a row
+      of always-visible icon buttons. Move the less-frequently-used ones
+      (archive, delete) behind a three-dot overflow menu instead.
     - **Font selection**: let the user change the font used for note text
       (editor + rendered preview).
 
@@ -512,6 +556,14 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       old client against a newer server schema, or vice versa) can't corrupt
       state or crash — audit `X-Librenotes-Api-Version` handling and the
       sync/wire-format assumptions in `notally_core` for gaps.
+    - **Persist a real Android release keystore in CI**: see the signing note
+      under "Licensing & distribution" — `release.yml`'s GitHub Release APK
+      is currently signed with a fresh debug key on every tagged build (no
+      keystore persisted between runs), which breaks in-place updates between
+      GitHub releases and guarantees a signer mismatch against the F-Droid
+      build of the same version. Generate one keystore, store it
+      base64-encoded as a GitHub Actions secret, and have `build-android` in
+      `release.yml` use it instead of the debug config.
 
 ## Conventions
 

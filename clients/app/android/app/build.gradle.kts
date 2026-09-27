@@ -40,8 +40,16 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // Debug-signed on purpose for F-Droid: F-Droid builds from source
+            // and always re-signs with its own repo key regardless of what
+            // signs this build, so the signing config here is irrelevant to
+            // the F-Droid distribution path. It does matter for the GitHub
+            // Release APK, though — CI (release.yml) has no persisted
+            // keystore, so each tagged build generates a fresh, unique debug
+            // key. That means direct-APK installs can't update in place
+            // between GitHub releases (Android refuses a signature-mismatched
+            // upgrade) and will never share a signer with the F-Droid build
+            // of the same version. See CLAUDE.md "Licensing & distribution."
             signingConfig = signingConfigs.getByName("debug")
         }
     }
