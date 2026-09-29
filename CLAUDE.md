@@ -76,12 +76,15 @@ LibreNotes/
 │   ├── lib/api.dart         HTTP routes + bearer-token auth.
 │   ├── test/db_test.dart    Core sync/conflict tests (in-memory db).
 │   └── Dockerfile           Server image (published to GHCR by docker.yml).
-├── scripts/                 package-linux.sh (AppImage + tarball), package-server.sh
-│                            (server tarball + install.sh/backup.sh), bump-version.sh.
+├── scripts/                 package-linux.sh (AppImage + tarball, then calls
+│                            package-linux-deb-rpm.sh for .deb/.rpm via fpm),
+│                            package-server.sh (server tarball + install.sh/backup.sh),
+│                            bump-version.sh.
 ├── website/                 Next.js + Tailwind static export (marketing site, changelog
 │                            page, live demo); deployed via Vercel, redirects in vercel.json.
-├── .github/                 workflows/ (release.yml: tag-push + manual-dispatch release
-│                            build; docker.yml), ISSUE_TEMPLATE/.
+├── .github/                 workflows/ (ci.yml: analyze + tests on push/PR; release.yml:
+│                            tag-push + manual-dispatch release build; docker.yml),
+│                            ISSUE_TEMPLATE/.
 ├── docker-compose.yml       Server deployment.
 ├── CHANGELOG.md, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md, LICENSE, README.md
 └── clients/app/             Flutter client (desktop + Android + web, one codebase).
@@ -92,7 +95,7 @@ LibreNotes/
     │                        note_crypto.dart (Argon2id + XChaCha20-Poly1305, client-only).
     ├── lib/ui/              home_screen, note_editor, conflicts_page, sync_settings_page,
     │                        archive_page, trash_page, import_export_page,
-    │                        locked_recovery_screen, outdated_app_screen.
+    │                        locked_recovery_screen, outdated_app_screen, loading_screen.
     ├── lib/desktop/         quick_capture.dart (global hotkey, Linux).
     ├── lib/android/         share_intent.dart (share-sheet target).
     ├── lib/                 theme.dart, format.dart, markdown_editing_controller.dart,
@@ -278,9 +281,9 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       `onSharedText` pushed via `onNewIntent` for a share while the app's
       already running (`singleTop` launch mode). Dart side
       (`lib/android/share_intent.dart`) creates the note and opens it
-      directly in the editor. Not yet verified against a real Android build —
-      no Android SDK on the dev machine this was built on; verified via
-      `flutter analyze` and manifest/Kotlin review only.
+      directly in the editor. Since verified working on a real Android
+      device (originally shipped checked only via `flutter analyze` and
+      manifest/Kotlin review).
     - Also fixed in passing: a stale local dev database on this machine had
       `PRAGMA user_version` stuck at 3 while the `archived` column (schema
       v4) already existed physically, crash-looping the app on every launch.
@@ -669,11 +672,28 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
 
     **v1.6.0 — Reach & polish.** Small release: distribution reach plus the
     known-broken Wayland hotkey and two startup/housekeeping niceties.
-    - **Linux .deb/.rpm packages**: add `fpm` to `scripts/package-linux.sh` to
-      produce `.deb` (Debian/Ubuntu) and `.rpm` (Fedora/openSUSE) from the same
-      Flutter bundle. Install to `/opt/librenotes/` + wrapper at `/usr/bin/librenotes`,
-      desktop entry, icon, appdata in standard XDG paths. Distribute via GitHub
-      releases alongside AppImage + tarball. Dependency: `gtk3`/`libgtk-3-0`.
+    - **Linux .deb/.rpm packages** — IMPLEMENTED (unreleased, awaiting the
+      v1.6.0 tag): `scripts/package-linux-deb-rpm.sh` (called at the end of
+      `package-linux.sh`) builds `LibreNotes-<ver>-<amd64|arm64>.deb` and
+      `LibreNotes-<ver>-<x86_64|aarch64>.rpm` from the same Flutter bundle with
+      `fpm` (pinned to 1.18.0 in `release.yml`, which sets
+      `REQUIRE_PACKAGES=1` so a missing tool fails the release rather than
+      shipping without them; locally the step is skipped with a note when
+      fpm/rpmbuild are absent). Layout matches the AUR package: bundle in
+      `/opt/librenotes/`, wrapper at `/usr/bin/librenotes`, desktop entry,
+      icon, appdata in XDG paths. Deps: deb `libgtk-3-0`, `libsecret-1-0`,
+      `libkeybinder-3.0-0`; rpm declares the same as soname capabilities
+      (`libgtk-3.so.0()(64bit)` etc.) since Fedora and openSUSE package names
+      differ. **Verified 2026-09-29 in containers:** built under Ubuntu 24.04,
+      installed + removed cleanly on stock Ubuntu 24.04 (deb) and Fedora 44
+      (rpm; deps resolve to gtk3/keybinder3/libsecret, `rpm -V` clean), using
+      a stale local bundle — the packages haven't run through the real CI job
+      yet, and openSUSE and arm64 are untested. The website's Download
+      section already has Debian/Ubuntu and Fedora/openSUSE cards
+      (`DownloadSection.js`), added ahead of the release with a "Coming soon"
+      badge and a TODO comment: once a GitHub release actually ships the
+      `.deb`/`.rpm` files (v1.6.0), drop the badges and point the cards at the
+      real assets.
     - **Global hotkey via `xdg-desktop-portal` on Wayland**: the current
       quick-capture hotkey (`lib/desktop/quick_capture.dart`, `hotkey_manager`
       + `keybinder-3.0`) only works under X11/XWayland — `XGrabKey` has no
@@ -696,19 +716,36 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       own custom-shortcut settings. Goal is tiered friction: zero setup for
       X11 + GNOME/KDE (the majority), manual one-time setup only for the
       long-tail compositors.
-    - **Auto-purge trash after 30 days**: trashed notes are permanently
-      deleted 30 days after being trashed, reusing the client-side sweep
-      pattern from `sweepExpiredNotes` and the existing `purged` flag/
-      `DELETE /notes/<id>/purge` propagation. Show the remaining days on the
-      Trash page.
-    - **Loading/splash screens**: on mobile, a proper splash screen using the
-      LibreNotes squircle icon (Android 12+ `SplashScreen` API via
-      `flutter_native_splash` or native theme config, with a pre-12 fallback;
-      dark `#1a1a1a` background to match the theme) instead of the blank
-      screen during startup. On desktop (Linux), a matching "LibreNotes"
-      loading screen (logo + name) shown while `main.dart` runs `db.warmUp()`
-      and `LocalKeyManager.resolve()` before the first frame, so launch
-      doesn't look frozen.
+    - **Auto-purge trash after 30 days** — IMPLEMENTED (unreleased):
+      `NotesRepository.sweepTrash()` marks trashed notes older than
+      `trashRetention` (30 days) for purge via `markForPurge`, so it rides the
+      existing `purged` flag / `DELETE /notes/<id>/purge` propagation — no
+      schema or server change. Trash age is the note's `updatedAt` (stamped
+      when trashed, unchanged while it sits there). `startExpirySweep` was
+      renamed `startSweeps` and now runs both the self-destruct and trash
+      sweeps (startup + every 60s). Trash page shows a retention hint and
+      "N days left" per note (`trashRemainingLabel` in `format.dart`).
+      Tests in `notes_repository_test.dart`, `format_test.dart`,
+      `loading_and_trash_ui_test.dart`. **Caveat, called out in the
+      changelog:** notes already in trash >30 days at upgrade time are purged
+      on first launch.
+    - **Loading/splash screens** — IMPLEMENTED (unreleased), hand-rolled native
+      config instead of `flutter_native_splash` (no new dependency for the
+      F-Droid audit). Android: dark `#1a1a1a` (`res/values/colors.xml`) +
+      centered icon (`drawable-xxxhdpi/splash_icon.png`, squircle padded to a
+      960px canvas); `LaunchTheme`/`NormalTheme` are dark in `values/`,
+      `values-night/`, and use the Android 12+ `windowSplashScreen*`
+      attributes in `values-v31/` + `values-night-v31/` (both are needed —
+      the night qualifier outranks the API-level one); pre-12 uses the
+      `launch_background` layer-list. Desktop (and all platforms after the
+      native splash): `lib/ui/loading_screen.dart` (`LoadingApp`, logo + name;
+      name omitted on Android to avoid the logo jumping) is `runApp`'d first
+      thing in `main()`, before `db.warmUp()` / `LocalKeyManager.resolve()`,
+      then replaced by the real app's `runApp`. Logo asset:
+      `assets/splash_logo.png`. Verified: release APK builds (resources
+      compile) and a widget test renders the loading screen; **not yet seen
+      on a real device or desktop window** — needs a visual check on Android
+      11-, Android 12+, and Linux.
 
     **v1.7.0 — Note content.** Tags, checklists, and the editor/desktop
     surface around them. Encrypted backup comes last so it covers tags.
@@ -883,12 +920,15 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
 
     **Not version-gated — do anytime, no release needed.** Do the CI workflow
     first, since it guards everything else.
-    - **CI on pushes and PRs**: new `.github/workflows/ci.yml` running
-      `flutter analyze` + `flutter test` (in `clients/app/`) and `dart test`
-      (in `server/`) on every push and pull request, separate from
-      `release.yml` (tag push + manual `workflow_dispatch` only). Pin the Flutter version to match the project
-      (currently 3.32.2) so results are reproducible; optionally mark the
-      check as required for merging into `main`.
+    - **CI on pushes and PRs** — IMPLEMENTED (`.github/workflows/ci.yml`,
+      separate from `release.yml`, which only runs on tag push + manual
+      `workflow_dispatch`). Runs on every push to `main` and every PR, with
+      two jobs: app (`flutter analyze` + `flutter test`, Flutter pinned to
+      3.32.2 to match `release.yml`, `pub get --enforce-lockfile`) and server
+      (`dart analyze` + `dart test` for both `notally_core` and `server/`).
+      Every command was verified locally, but the workflow itself hasn't run
+      on GitHub yet — check the first run after it's pushed. Still optional:
+      mark the checks required for merging into `main`.
     - **HTTPS docs**: document putting the server behind a reverse proxy
       (Caddy/nginx) or Tailscale HTTPS for TLS — README + website Server Setup
       section. Docs only; the server stays plain HTTP and LAN/mesh-only.
@@ -917,7 +957,8 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       entry in a markdown file.
     - **Enable GitHub Discussions** in repo settings (Settings → Features) —
       the issue template `config.yml` already links to it.
-    - **Google Play Store submission**: planned, as an additional Android
+    - **Google Play Store submission**: IN PROGRESS — Play Console account
+      created and paid (2026-09-29), nothing uploaded or published yet. An additional Android
       distribution channel alongside F-Droid, GitHub Releases, and AUR — not
       a replacement for any of them. The app itself doesn't need to change to
       qualify (already Play-Services/Firebase/tracker-free per the F-Droid
@@ -926,11 +967,111 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       requires a stable app signing key across updates — either a
       self-managed upload key + Play App Signing, or bring-your-own-key) as
       long as it's backed up per that item's follow-up note before this
-      ships. Also needs:
-      a Google Play Console developer account ($25 one-time fee), a privacy
-      policy page (the website already exists — could host it there), and
-      Play's data-safety form filled out honestly (should be easy given
-      there's no analytics/tracking to disclose).
+      ships. Checklist (written 2026-09-29; items marked *verify* were not
+      checked against the repo when written — Play's numeric requirements
+      also change over time, so re-confirm against Play Console's own docs):
+      - **Account status (2026-09-29)**: the personal Google Play Console
+        account is **created and the $25 fee is paid**. Sign-up choices made:
+        account type *Personal* (the organization sub-types — nonprofit,
+        company, government — need a registered entity, which doesn't exist),
+        developer website `https://librenotes.ayopili.com`, contact name = the
+        owner's legal name as on their ID (must match the verification
+        documents). Still to confirm in the console: identity/address/phone
+        verification has fully cleared, and the "earning money" answer matches
+        intent (donations only, taken *outside* Play — GitHub Sponsors/Ko-fi
+        style links on the website/README; keep donate prompts out of the
+        app itself until Play's payments policy has been re-read, *verify*).
+      - **Account**: personal Google Play Console account ($25 one-time,
+        identity verification). Personal accounts must run a **closed test
+        with at least 12 testers opted in for 14 consecutive days** before
+        applying for production access; the owner must recruit these testers
+        (Google supplies none). Start early — it's the long pole. Listing
+        contact email: `contact@ayopili.com`.
+      - **Signing decision (irreversible, decide before the first upload)**:
+        with Play App Signing, Google holds the app-signing key unless the
+        item-26 keystore is supplied at app creation (bring-your-own-key,
+        via Play's PEPK export). Preferred: bring-your-own-key, so the Play
+        and GitHub Release builds share one signer and update in place.
+        F-Droid stays a separate signer regardless.
+      - **AAB, not APK**: `release.yml`'s `build-android` job only builds an
+        APK. Add `flutter build appbundle --release` (signed via the same
+        `key.properties` step) and attach the `.aab` to the release/artifacts.
+      - **Target SDK** (*verify*): Play requires new apps/updates to target a
+        recent API level (36 as of late 2026). Flutter 3.32.2's default
+        `compileSdkVersion` is 35 (checked in the installed SDK's
+        `FlutterExtension.kt`; the default `targetSdkVersion` is set right
+        next to it), so it is likely below Play's minimum. Bumping the
+        target may mean a newer Flutter/Gradle, which also changes what
+        F-Droid's recipe builds with (it reads `flutter-version` out of
+        `release.yml`) — check
+        `android/app/build.gradle.kts`, override `targetSdk` explicitly if
+        needed, and re-test on Android 16 behavior changes.
+      - **16 KB page-size support** (*verify*): apps targeting Android 15+
+        must ship 16 KB-aligned native libs. Check the `sqlite3` libs,
+        `flutter_secure_storage`, other plugins' `.so` files, and the Flutter
+        engine, and the NDK version used by CI (needs r28+ or explicit
+        alignment). Confirm with `zipalign -c -P 16 -v 4` on the built AAB/APK.
+      - **arm64-only** (`abiFilters`): permitted on Play, but excludes
+        32-bit-only and x86 devices from the device catalogue. Accepted
+        tradeoff unless it turns out to matter; revisit deliberately.
+      - **Cleartext HTTP** — not a problem (owner tested sync over a plain
+        `http://` address on a real device, 2026-09-29): Dart's `http`/`dart:io`
+        uses its own socket stack, which Android's cleartext-traffic policy
+        doesn't govern, so no network security config is needed. Note the
+        tradeoff for the listing/policy: note contents are E2EE regardless,
+        but plain HTTP exposes sync metadata (ids, sizes, timing) and the
+        bearer token (an on-path attacker could tamper with, not read,
+        notes); the privacy page already says transport security is the
+        user's choice, and recommends WireGuard/Tailscale or HTTPS off-LAN.
+      - **Icon**: Play needs a **512×512 PNG**; the source
+        `assets/icon/librenotes.jpg` is 457×457. Regenerate/upscale from a
+        higher-resolution master (or redraw) — don't just stretch the JPG.
+      - **Privacy policy** — WRITTEN (2026-09-29, uncommitted): `website/app/
+        privacy/page.js`, served at `https://librenotes.ayopili.com/privacy`
+        once deployed (linked from the site footer). States the app collects
+        nothing, what's stored on-device, exactly what a sync server sees
+        (ciphertext + id/rev/seq/deleted/purged/updatedAt + wrapped key),
+        that transport security is the user's choice (plain `http://` allowed),
+        the single `INTERNET` permission, no third-party SDKs, and the
+        website's Bunny Fonts request + `localStorage` use. Its contact email
+        is `contact@ayopili.com` — confirm that's the inbox you actually
+        read. **Keep it true:** if the app ever gains analytics, a new
+        permission, a new network endpoint, or a new stored field, update this
+        page (and the Play data-safety form) in the same change. Enter the
+        URL in Play Console (Store settings / App content → Privacy policy).
+      - **Data safety form**: answer honestly (no analytics, ads, or
+        tracking; nothing sent to the developer). Likely answer: no data
+        collected or shared, since nothing reaches the developer and what goes
+        to the user's own server is E2EE — which would make the "encrypted in
+        transit" question moot (*verify* against the form's help text; don't
+        tick the box unless it's true, since it's a declaration).
+      - **App access**: reviewers can't reach a home server. State in the
+        App access section that the app is fully functional offline with no
+        login or account, and sync is optional; otherwise Play may reject it
+        as untestable.
+      - **Other declarations**: IARC content-rating questionnaire, target
+        audience (not for children), ads (none), plus the remaining standard
+        Play Console declarations.
+      - **Release pipeline**: do the first upload manually; afterwards
+        automate via a service-account key stored as a GitHub secret plus
+        `r0adkll/upload-google-play` or fastlane `supply` in `release.yml`.
+        Fastlane's `en-US` metadata layout already maps onto Play's fields.
+      - **Version codes**: F-Droid and Play both read `versionCode` from the
+        pubspec build number (`+N`); it must stay strictly increasing across
+        every release, and `scripts/bump-version.sh` already handles it.
+      - **Already done**: feature graphic, screenshots, and short/full
+        descriptions exist; release keystore is persisted, in CI, and backed
+        up (item 26); share-sheet integration verified on a real device.
+      - **Android developer verification** (*verify*): Google has been rolling
+        out a requirement that developers of apps installed outside Play
+        register/verify with Google (phased by country, starting 2026). It
+        may affect the sideloaded GitHub APK and F-Droid distribution, not
+        just Play. Check what the Play Console account needs to register
+        `dev.librenotes.app` and its signing key(s) for it.
+      - **Later interaction**: the roadmap's reminders feature (v1.9.0) would add
+        `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM`, which are restricted on
+        Play and need a declared core-function justification — design with
+        that in mind.
 
 ## Conventions
 
