@@ -1,0 +1,71 @@
+name: CI
+
+# Runs on every push to main and on every pull request. Deliberately separate
+# from release.yml, which only runs on tag pushes (and manual dispatch) and
+# builds/publishes artifacts.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch/PR supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Flutter client ──────────────────────────────────────────────────────────
+  app:
+    name: App (analyze + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/app
+    steps:
+      - uses: actions/checkout@v4
+
+      # Keep in step with release.yml's flutter-version (F-Droid's recipe reads
+      # the version out of that file too).
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.2'
+          cache: true
+
+      # The Drift/sqlite3 tests open an in-memory database through the host's
+      # libsqlite3.
+      - name: Install libsqlite3
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter analyze
+      - run: flutter test
+
+  # ── Sync server + shared models ─────────────────────────────────────────────
+  server:
+    name: Server (analyze + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install libsqlite3
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
+      - name: notally_core
+        working-directory: packages/notally_core
+        run: |
+          dart pub get --enforce-lockfile
+          dart analyze
+
+      - name: server
+        working-directory: server
+        run: |
+          dart pub get --enforce-lockfile
+          dart analyze
+          dart test
