@@ -82,7 +82,7 @@ jobs:
           name: android-apk
           path: LibreNotes-*-android-arm64.apk
 
-  # ── Linux client (AppImage + tarball) ───────────────────────────────────────
+  # ── Linux client (AppImage + tarball + .deb + .rpm) ─────────────────────────
   build-linux-client:
     needs: check-version
     runs-on: ubuntu-latest
@@ -97,11 +97,22 @@ jobs:
             libkeybinder-3.0-dev \
             pkg-config ninja-build cmake clang
 
+      # fpm builds the .deb and .rpm (scripts/package-linux-deb-rpm.sh); rpm
+      # provides rpmbuild for the .rpm.
+      - name: Install packaging tools (fpm, rpm)
+        run: |
+          sudo apt-get install -y ruby ruby-dev rpm
+          sudo gem install fpm --no-document -v 1.18.0
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
 
       - name: Build Linux artifacts
+        env:
+          # A missing fpm/rpmbuild must fail the release, not quietly ship
+          # without the .deb/.rpm.
+          REQUIRE_PACKAGES: '1'
         run: bash scripts/package-linux.sh
 
       - uses: actions/upload-artifact@v4
@@ -110,6 +121,8 @@ jobs:
           path: |
             dist/LibreNotes-*.tar.gz
             dist/LibreNotes-*.AppImage
+            dist/LibreNotes-*.deb
+            dist/LibreNotes-*.rpm
 
   # ── Server tarball ───────────────────────────────────────────────────────────
   build-server:

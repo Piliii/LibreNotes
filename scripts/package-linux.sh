@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Produces two artifacts in dist/:
+# Produces these artifacts in dist/:
 #   LibreNotes-<version>-linux-<arch>.tar.gz   — relocatable bundle + desktop entry
 #   LibreNotes-<version>-<arch>.AppImage        — self-contained AppImage
+#   LibreNotes-<version>-<amd64|arm64>.deb      — Debian/Ubuntu package  ┐ via
+#   LibreNotes-<version>-<x86_64|aarch64>.rpm   — Fedora/openSUSE package ┘ fpm
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -73,6 +75,11 @@ ARCH="$ARCH" APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGETOOL" "$APPDIR" "$DIST/$APPIMA
 rm -rf "$APPDIR"
 echo "    → $DIST/$APPIMAGE"
 
+# ── 4. .deb / .rpm ────────────────────────────────────────────────────────────
+# Skipped with a note if fpm/rpmbuild aren't installed (set REQUIRE_PACKAGES=1
+# to make that an error, as CI does). See scripts/package-linux-deb-rpm.sh.
+bash "$REPO_ROOT/scripts/package-linux-deb-rpm.sh"
+
 echo ""
 echo "Done:"
-ls -lh "$DIST/$TARBALL" "$DIST/$APPIMAGE"
+ls -lh "$DIST"/LibreNotes-"${VERSION}"-*
