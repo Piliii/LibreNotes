@@ -13,11 +13,16 @@ import 'sync/note_crypto.dart';
 import 'sync/sync_service.dart';
 import 'theme.dart';
 import 'ui/home_screen.dart';
+import 'ui/loading_screen.dart';
 import 'ui/locked_recovery_screen.dart';
 import 'ui/outdated_app_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Paint something immediately: everything below (migration, keyring, sync
+  // init) can take a noticeable moment, and on desktop the window doesn't
+  // even appear until the first frame. Replaced by the real app's runApp.
+  runApp(const LoadingApp());
   final db = AppDatabase();
   // Forces any pending schema migration to run now, so the local DEK is
   // guaranteed to be in the keyring (or we already know it can't be) before
