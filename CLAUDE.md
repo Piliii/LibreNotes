@@ -672,6 +672,36 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       X11 + GNOME/KDE (the majority), manual one-time setup only for the
       long-tail compositors.
     - **Server optional WebSocket push** (instead of polling every 10s).
+    - **Tags**: free-form tags per note (e.g. `#work`), stored inside the
+      encrypted payload like `archived`/`expiresAt` so the server never sees
+      them (no server change; `Note` in `notally_core` gains a tag list, and
+      the local Drift schema gets a new version + migration following the
+      incremental-`user_version` pattern from item 21). Filter by tag in the
+      sidebar/mobile header; tag-aware search.
+    - **Checklists & task markdown**: `- [ ]` / `- [x]` GitHub-style task
+      lists — tappable checkboxes in the full Preview render, live-preview
+      rendering in `MarkdownEditingController`, a toolbar action in
+      `markdown_format.dart` to toggle a checklist, and card/sidebar previews
+      showing checkbox state. Still plain markdown, no format change.
+    - **Encrypted backup export**: export the whole library (including
+      archived notes) as a single passphrase-encrypted file that can be
+      restored on any install, alongside the existing plaintext `.md` export.
+      Reuses the Argon2id + XChaCha20-Poly1305 primitives in `note_crypto.dart`.
+      Needs a matching import/restore flow.
+    - **HTTPS docs**: document putting the server behind a reverse proxy
+      (Caddy/nginx) or Tailscale HTTPS for TLS — README + website Server Setup
+      section. Docs only; the server stays plain HTTP and LAN/mesh-only.
+    - **CI on pushes and PRs**: new `.github/workflows/ci.yml` running
+      `flutter analyze` + `flutter test` (in `clients/app/`) and `dart test`
+      (in `server/`) on every push and pull request, separate from the
+      tag-only `release.yml`. Pin the Flutter version to match the project
+      (currently 3.32.2) so results are reproducible; optionally mark the
+      check as required for merging into `main`.
+    - **Auto-purge trash after 30 days**: trashed notes are permanently
+      deleted 30 days after being trashed, reusing the client-side sweep
+      pattern from `sweepExpiredNotes` and the existing `purged` flag/
+      `DELETE /notes/<id>/purge` propagation. Show the remaining days on the
+      Trash page.
 
     **v1.7.0 — Editing & customization.** Remaining editor-toolbar and
     font-surface work — the highlight/custom-color/live-preview items
@@ -684,6 +714,56 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       (archive, delete) behind a three-dot overflow menu instead.
     - **Font selection**: let the user change the font used for note text
       (editor + rendered preview).
+    - **Biometric login for the mobile app**: optional fingerprint/face unlock
+      on Android (e.g. `local_auth`, which uses the platform BiometricPrompt —
+      no Google Play Services dependency, keeps the F-Droid audit clean) as an
+      app-lock gate on launch/resume. Off by default, toggled in settings, with
+      device-credential (PIN/pattern) fallback. Gates UI access only; the DEK
+      stays in the keyring as today (`local_key_manager.dart`) — consider
+      whether to also bind the keyring entry to biometric auth for real
+      at-rest protection instead of just a UI lock.
+    - **Reminders & notifications (fully local, no FCM)**: per-note reminder
+      time, separate from the self-destruct timer. Stored as a nullable field
+      in the encrypted payload like `expiresAt` (schema migration, no
+      sync/crypto/server changes), so it syncs across devices without the
+      server seeing it. Each device schedules its own local notification via
+      `flutter_local_notifications` (Android `AlarmManager`) — no Firebase,
+      no Play Services, no server push, F-Droid audit stays clean.
+      - Set from the mobile card long-press menu and the desktop context menu:
+        pick a date/time or a preset ("in 1 hour", "tomorrow morning"), with
+        optional repeat. Notification actions: Open, Snooze, Done.
+      - **Self-destruct warning** (optional, setting): a heads-up notification
+        before a self-destructing note is deleted (e.g. 1 hour prior),
+        reusing the `expiresAt` sweep in `NotesRepository`.
+      - **Catches to handle:** (1) exact timing needs the
+        `SCHEDULE_EXACT_ALARM` permission — request it, and fall back to
+        inexact alarms (may fire a few minutes late) if denied; (2) Android
+        clears alarms on reboot, so reschedule on `RECEIVE_BOOT_COMPLETED`;
+        (3) a reminder set on another device only reaches this one after its
+        next sync (10s poll), so one set moments before it's due may miss;
+        (4) Android 13+ needs the runtime `POST_NOTIFICATIONS` permission;
+        (5) desktop notifications only fire while the app is running (no
+        background service); (6) reschedule on sync from another device and
+        cancel when the note is deleted, archived, or completed; (7) hide the
+        note body in the notification while the biometric lock is enabled.
+    - **Light theme + system theme option**: add a light palette (keeping the
+      orange `#ff6900` accent and checking note-color contrast, see v1.5.5's
+      safeguard) and a Theme setting: Dark / Light / System (follow OS).
+      Dark stays the default.
+    - **Change passphrase & key rotation**: re-wrap the DEK under a new
+      passphrase (updates the server `keystore`, no note re-encryption), plus
+      an optional full key rotation that generates a new DEK and re-encrypts
+      every note locally and on the server. Other devices need to pick up the
+      new keystore.
+    - **Server token rotation**: revoke/regenerate the bearer auth token
+      (CLI command or endpoint), with clients prompted to re-enter it. Needs a
+      `server/pubspec.yaml` bump (and `_apiVersion` only if the wire protocol
+      changes).
+    - **Better conflict UI**: side-by-side diff of the local vs. server
+      version with highlighted changes, and an optional manual-merge editor,
+      on top of the current pick-the-winner choice (`conflicts_page.dart`).
+    - **Sync status details**: last-synced time, pending-changes count, and
+      clearer offline/error/version-mismatch states in the sync UI.
 
     **v1.8.0 — Personal knowledge base.** Both purely local/client-side, turn
     the app from a note pile into a lightweight PKB.
@@ -695,11 +775,35 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       accepted write — persist the last N encrypted snapshots per note
       locally (Drift) so a note can be time-traveled/undone independently of
       the trash/archive flow. Purely local, no server involvement.
+    - **Server backup & restore**: a documented, tested restore flow for the
+      existing `backup.sh` (systemd tarball and Docker volume), and ideally a
+      `restore.sh` alongside it, with a verification step.
+    - **Localization (i18n)**: extract UI strings into Flutter's ARB/`gen_l10n`
+      setup so translations can be contributed; start with English as the base
+      and document the process in `CONTRIBUTING.md`.
+    - **Desktop keyboard shortcuts**: new note, focus search, toggle preview,
+      archive, etc., plus a help overlay listing them. Ctrl+W stays unbound
+      (see item 12).
 
     **v1.9.0 — New surfaces.** Bigger, more independent features — new
     platform surfaces rather than core app changes.
     - **Home-screen Android widget**: a widget for quick note creation
-      (and/or showing pinned notes) without opening the app.
+      (and/or showing pinned notes) without opening the app. Also a
+      **single-note widget**: the user picks a specific note (via a widget
+      configuration activity on placement) and the widget shows its
+      title/body, tapping it opens that note in the editor. Notes are
+      encrypted at rest, so the widget needs a decrypted snapshot handed to
+      the native side (the DEK lives in the keyring) — decide whether to
+      store that snapshot in plaintext app-private storage (convenient, but
+      weakens local-at-rest encryption for that one note) or decrypt on the
+      native side; either way, keep it refreshed when the note is edited or
+      synced, and handle the note being deleted/archived/expired. Consider
+      hiding content while the biometric app lock (v1.7.0) is enabled.
+    - **Images & attachments**: attach images/files to notes. Blobs must be
+      encrypted client-side (same DEK/AEAD) and need a new server blob
+      endpoint plus a wire-protocol change (bump `_apiVersion` in lockstep,
+      see Conventions) — the biggest sync-protocol change on the roadmap.
+      Consider size limits, local storage, and inclusion in exports/backups.
     - **On-device voice-to-text notes**: local speech-to-text (e.g.
       whisper.cpp/vosk) to transcribe voice memos into notes with zero cloud
       STT dependency — consistent with the no-Google-services/self-hosted
@@ -726,15 +830,37 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       before calling it done.
 
     **Not version-gated — do anytime, no release needed.**
+    - **Loading/splash screens**: on mobile, a proper splash screen using the
+      LibreNotes squircle icon (Android 12+ `SplashScreen` API via
+      `flutter_native_splash` or native theme config, with a pre-12 fallback;
+      dark `#1a1a1a` background to match the theme) instead of the blank
+      screen during startup. On desktop (Linux), a matching "LibreNotes"
+      loading screen (logo + name) shown while `main.dart` runs `db.warmUp()`
+      and `LocalKeyManager.resolve()` before the first frame, so launch
+      doesn't look frozen.
+    - **Website SEO / discoverability files**: add a dynamic `sitemap.xml`,
+      `robots.txt`, and `llms.txt` to `website/` (Next.js metadata routes —
+      `app/sitemap.js`, `app/robots.js` — generated at build time so they track
+      the real routes; `llms.txt` summarizing what LibreNotes is, links to docs,
+      GitHub, F-Droid, and server setup). Note the site is a static export, so
+      these must be statically generatable.
+    - **Real metadata throughout the website**: proper per-page `<title>`/
+      description, canonical URLs, Open Graph + Twitter card tags with a
+      branded embed image (logo, orange `#ff6900` accent / `#1a1a1a` dark
+      theme-color so link previews in Discord/Slack/etc. look right), favicon
+      and `theme-color`, plus JSON-LD (`SoftwareApplication`) structured data.
+    - **Website accessibility + alt text**: audit `website/` for a11y — meaningful
+      `alt` text on every screenshot/logo/image (decorative ones `alt=""`),
+      accessible names on icon-only buttons (copy buttons, tabs, links),
+      semantic landmarks/heading order, visible focus states, keyboard
+      operability of the live demo and Binary/Docker tabs, and colour contrast
+      (orange accent on dark). Verify with Lighthouse/axe.
     - **awesome-selfhosted submission**: submit a PR to
       `awesome-selfhosted/awesome-selfhosted` to list LibreNotes under the
       Notes/Notebooks category. This is one of the highest-value visibility
       actions for a self-hosted project — the list drives organic traffic, stars,
       and the right audience. Write the PR yourself (no AI); it's a one-liner
       entry in a markdown file.
-    - **Verify Android share-sheet on a real device/SDK**: shipped in v1.3.0
-      but only verified via `flutter analyze` and manifest/Kotlin review — no
-      Android SDK was available on the dev machine it was built on.
     - **Enable GitHub Discussions** in repo settings (Settings → Features) —
       the issue template `config.yml` already links to it.
     - **Guard against unsynced server/client version drift**: make sure a
