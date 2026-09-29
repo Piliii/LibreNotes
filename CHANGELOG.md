@@ -6,6 +6,9 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Added
+- The Sync page now shows the app version and build number at the bottom.
+
 ## [1.5.5] — 2026-09-29
 
 ### Added

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../sync/sync_service.dart';
 import '../theme.dart';
@@ -115,6 +116,8 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
             ),
             const SizedBox(height: 16),
             _ConflictsLink(service: widget.service),
+            const SizedBox(height: 32),
+            const _VersionLabel(),
           ],
         ),
       ),
@@ -230,6 +233,29 @@ class _ConflictsLink extends StatelessWidget {
           ),
           icon: const Icon(Icons.merge_type),
           label: Text('Resolve ${conflicts.length} conflict(s)'),
+        );
+      },
+    );
+  }
+}
+
+/// App version, read from the build itself (pubspec `version:`) so there is
+/// no separate constant to keep in sync on release.
+class _VersionLabel extends StatelessWidget {
+  const _VersionLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snap) {
+        final info = snap.data;
+        if (info == null) return const SizedBox.shrink();
+        return Center(
+          child: SelectableText(
+            'LibreNotes ${info.version} (${info.buildNumber})',
+            style: const TextStyle(color: NotallyColors.textFaint, fontSize: 12),
+          ),
         );
       },
     );
