@@ -1,18 +1,18 @@
-import { siGithub, siFdroid } from 'simple-icons';
-import BrandIcon from './BrandIcon';
-
 const LINKS = [
   { label: 'GitHub', href: 'https://github.com/Piliii/LibreNotes', external: true },
   { label: 'F-Droid', href: 'https://f-droid.org/en/packages/dev.librenotes.app/', external: true },
-  { label: 'AGPLv3 license', href: 'https://github.com/Piliii/LibreNotes/blob/main/LICENSE', external: true },
+  { label: 'AUR', href: 'https://aur.archlinux.org/packages/librenotes-bin', external: true },
+  { label: 'Docker', href: 'https://github.com/Piliii/LibreNotes/pkgs/container/librenotes-server', external: true },
+  { label: 'License', href: 'https://github.com/Piliii/LibreNotes/blob/main/LICENSE', external: true },
 ];
 
 const NAV = [
-  { label: 'Screenshots', href: '#screenshots' },
-  { label: 'Features', href: '#features' },
-  { label: 'Demo', href: '#demo' },
-  { label: 'Download', href: '#download' },
-  { label: 'Server setup', href: '#server' },
+  { label: 'Screenshots', href: '/#screenshots' },
+  { label: 'Features', href: '/#features' },
+  { label: 'Demo', href: '/#demo' },
+  { label: 'Download', href: '/#download' },
+  { label: 'Server setup', href: '/#server' },
+  { label: 'Changelog', href: '/changelog' },
 ];
 
 export default function Footer() {
@@ -29,28 +29,6 @@ export default function Footer() {
             <p className="max-w-xs text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               Private, offline-first notes with end-to-end encryption, synced to your own server.
             </p>
-            <div className="flex items-center gap-3 mt-1">
-              <a
-                href="https://github.com/Piliii/LibreNotes"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="transition-colors hover:text-[#ff6900]"
-                style={{ color: 'var(--text-secondary)' }}
-                aria-label="GitHub"
-              >
-                <BrandIcon icon={siGithub} size={16} />
-              </a>
-              <a
-                href="https://f-droid.org/en/packages/dev.librenotes.app/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="transition-colors hover:text-[#ff6900]"
-                style={{ color: 'var(--text-secondary)' }}
-                aria-label="F-Droid"
-              >
-                <BrandIcon icon={siFdroid} size={16} />
-              </a>
-            </div>
           </div>
 
           <div className="flex gap-16">
@@ -94,7 +72,7 @@ export default function Footer() {
 
         <div className="mt-10 border-t pt-6" style={{ borderColor: 'var(--border)' }}>
           <p className="text-center text-[11px]" style={{ color: 'var(--text-secondary)', opacity: 0.5 }}>
-            LibreNotes is free and open source software, licensed under the AGPLv3.
+            © {new Date().getFullYear()} LibreNotes
           </p>
         </div>
       </div>

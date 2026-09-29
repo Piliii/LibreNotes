@@ -6,6 +6,36 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [1.5.5] — 2026-09-29
+
+### Added
+- Website: a changelog page, linked from the nav bar and footer, plus a
+  version badge in the nav bar.
+- Web demo: updated to mirror the app's live-preview markdown editing and
+  highlighting.
+
+### Fixed
+- Ghost empty notes: an empty note (e.g. the one auto-opened when the
+  desktop app starts) could reach the sync server before being discarded,
+  and discarding it only deleted it locally without telling the server —
+  so it would resurrect on the next sync. Closing an empty note now goes
+  through the same tombstone path as a real delete, and an empty note is
+  never pushed to the server in the first place. Notes with no text no
+  longer show up in the notes list at all.
+- Note text contrast: a light, white, or custom/gradient note color could
+  render text that blended into the background. Text color is now chosen
+  per note to meet a minimum contrast ratio against its actual background.
+- Website: the server "Binary install" instructions pointed at a broken
+  download link (it resolved to the GitHub release page, not a binary) and
+  there was no arm64 server build, despite the Raspberry Pi pitch. The
+  server is now built and published for both x86_64 and arm64, and the
+  install steps match what's actually shipped (the real tarball + `install.sh`).
+- `install.sh` now fails fast with a clear message on non-systemd hosts
+  instead of partially installing.
+- Android: GitHub Release APKs are now signed with a persistent release
+  keystore in CI instead of a fresh debug key on every build, fixing
+  in-place updates between GitHub releases.
+
 ## [1.5.0] — 2026-09-27
 
 ### Added
@@ -115,7 +145,10 @@ Initial public release of LibreNotes: self-hosted sync server, Flutter client
 Argon2id), trash bin with soft-delete tombstones, AGPLv3 license, F-Droid
 build recipe and store screenshots.
 
-[Unreleased]: https://github.com/Piliii/LibreNotes/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/Piliii/LibreNotes/compare/v1.5.5...HEAD
+[1.5.5]: https://github.com/Piliii/LibreNotes/compare/v1.5.0...v1.5.5
+[1.5.0]: https://github.com/Piliii/LibreNotes/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/Piliii/LibreNotes/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Piliii/LibreNotes/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/Piliii/LibreNotes/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/Piliii/LibreNotes/compare/v1.1.0...v1.2.0

@@ -2,7 +2,12 @@
   "redirects": [
     {
       "source": "/dl/server",
-      "destination": "https://github.com/Piliii/LibreNotes/releases/latest",
+      "destination": "https://github.com/Piliii/LibreNotes/releases/latest/download/librenotes-server-linux-x86_64.tar.gz",
+      "permanent": false
+    },
+    {
+      "source": "/dl/server-arm64",
+      "destination": "https://github.com/Piliii/LibreNotes/releases/latest/download/librenotes-server-linux-arm64.tar.gz",
       "permanent": false
     },
     {

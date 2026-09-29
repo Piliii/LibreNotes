@@ -1,8 +1,22 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Real release signing key, kept out of git (see android/.gitignore) and
+// supplied locally via key.properties or in CI by decoding the
+// ANDROID_KEYSTORE_BASE64 secret (see .github/workflows/release.yml).
+// Absent entirely for F-Droid's from-source build and for contributors
+// without the key — those fall back to the debug signing config below.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+val hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
 }
 
 android {
@@ -38,19 +52,30 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Debug-signed on purpose for F-Droid: F-Droid builds from source
-            // and always re-signs with its own repo key regardless of what
-            // signs this build, so the signing config here is irrelevant to
-            // the F-Droid distribution path. It does matter for the GitHub
-            // Release APK, though — CI (release.yml) has no persisted
-            // keystore, so each tagged build generates a fresh, unique debug
-            // key. That means direct-APK installs can't update in place
-            // between GitHub releases (Android refuses a signature-mismatched
-            // upgrade) and will never share a signer with the F-Droid build
-            // of the same version. See CLAUDE.md "Licensing & distribution."
-            signingConfig = signingConfigs.getByName("debug")
+            // Signed with the real release keystore when available (local
+            // key.properties, or CI via the ANDROID_KEYSTORE_BASE64 secret).
+            // F-Droid builds from source with no key.properties present, so
+            // this falls back to debug there — harmless, since F-Droid
+            // always re-signs with its own repo key regardless of what
+            // signs this build. See CLAUDE.md "Licensing & distribution."
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

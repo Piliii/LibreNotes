@@ -18,7 +18,7 @@ function CopyButton({ text }) {
     <button
       onClick={handleCopy}
       title="Copy to clipboard"
-      className="absolute top-2 right-2 flex items-center justify-center rounded p-1.5 transition-all duration-150 cursor-pointer"
+      className="absolute top-2 right-2 flex items-center justify-center rounded p-1.5 transition-all duration-300 cursor-pointer hover:rounded-[13px]"
       style={{
         background: copied ? '#1a3a1a' : '#1a1a1a',
         color: copied ? '#4ade80' : '#555',
@@ -34,18 +34,18 @@ function CopyButton({ text }) {
 const BINARY_STEPS = [
   {
     n: '1',
-    title: 'Download the server binary',
-    body: 'One self-contained executable, no runtime or dependencies required. Replace linux-x86_64 with linux-arm64 if on a Raspberry Pi.',
-    code: `curl -Lo librenotes-server \\
-  https://librenotes.ayopili.com/dl/server
-chmod +x librenotes-server`,
+    title: 'Download the server',
+    body: 'A self-contained tarball with the binary, a systemd service file, and an installer - no runtime or dependencies to install yourself. On a Raspberry Pi, use /dl/server-arm64 instead of /dl/server below.',
+    code: `curl -L https://librenotes.ayopili.com/dl/server | tar -xzf -
+cd librenotes-server`,
   },
   {
     n: '2',
-    title: 'Run it',
-    body: 'On startup it prints an auth token and the address it listens on — copy the token, you\'ll need it in the app.',
-    code: `./librenotes-server
-# Listening on 0.0.0.0:8787`,
+    title: 'Install it',
+    body: 'Sets up a systemd service running as its own unprivileged user, and prints the auth token once it starts.',
+    code: `sudo bash install.sh
+# Token also readable any time at:
+sudo cat /var/lib/librenotes/token`,
   },
   {
     n: '3',
@@ -62,13 +62,12 @@ const DOCKER_STEPS = [
     n: '1',
     title: 'Download the compose file',
     body: 'Fetches a ready-to-use compose file. Data is stored in a named volume so it survives container updates.',
-    code: `curl -Lo docker-compose.yml \\
-  https://librenotes.ayopili.com/dl/docker-compose`,
+    code: `curl -Lo docker-compose.yml https://librenotes.ayopili.com/dl/docker-compose`,
   },
   {
     n: '2',
     title: 'Start it',
-    body: 'Docker pulls the image automatically. The auth token is printed on first run and persisted in the volume — check the logs to copy it.',
+    body: 'Docker pulls the image automatically. The auth token is printed on first run and persisted in the volume - check the logs to copy it.',
     code: `docker compose up -d
 docker compose logs`,
   },
@@ -111,8 +110,8 @@ export default function ServerSetupSection() {
               <button
                 key={id}
                 onClick={() => setMethod(id)}
-                className={`rounded-lg px-5 py-2 text-sm font-semibold transition-all duration-200 cursor-pointer${
-                  method !== id ? ' hover:bg-white/5' : ''
+                className={`rounded-lg px-5 py-2 text-sm font-semibold transition-all duration-300 cursor-pointer hover:rounded-[18px] ${
+                  method !== id ? 'hover:bg-white/5' : ''
                 }`}
                 style={
                   method === id
@@ -126,32 +125,34 @@ export default function ServerSetupSection() {
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="flex flex-col gap-6">
           {steps.map(({ n, title, body, code }) => (
             <div
               key={n}
-              className="group flex min-w-0 flex-col gap-4 rounded-2xl border p-6 transition-all duration-200 hover:border-[#ff6900] hover:-translate-y-1"
+              className="group flex flex-col gap-6 rounded-2xl border p-8 transition-colors duration-200 hover:border-[#ff6900] sm:flex-row sm:items-start"
               style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border)' }}
             >
-              <div className="flex items-center gap-3">
-                <span
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors duration-200 group-hover:bg-white group-hover:text-[#ff6900]"
-                  style={{ background: 'var(--accent)', color: '#fff' }}
-                >
-                  {n}
-                </span>
-                <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                  {title}
-                </h3>
+              <div className="flex min-w-0 flex-1 flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-colors duration-200 group-hover:bg-white group-hover:text-[#ff6900]"
+                    style={{ background: 'var(--accent)', color: '#fff' }}
+                  >
+                    {n}
+                  </span>
+                  <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {title}
+                  </h3>
+                </div>
+
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  {body}
+                </p>
               </div>
 
-              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                {body}
-              </p>
-
-              <div className="relative mt-auto min-w-0">
+              <div className="relative min-w-0 flex-1">
                 <pre
-                  className="min-w-0 overflow-x-auto rounded-lg p-3 pr-8 text-[11px] leading-relaxed"
+                  className="min-w-0 overflow-x-auto rounded-lg p-4 pr-10 text-xs leading-relaxed"
                   style={{ background: '#111', color: '#a0a0a0', fontFamily: 'monospace', whiteSpace: 'pre', wordBreak: 'normal' }}
                 >
                   {code}
@@ -171,14 +172,14 @@ export default function ServerSetupSection() {
               Want sync away from home too?
             </p>
             <p className="mt-0.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
-              Put your devices and server on a Tailscale or WireGuard mesh. No server changes needed — just update the URL in the app.
+              Put your devices and server on a Tailscale or WireGuard mesh. No server changes needed - just update the URL in the app.
             </p>
           </div>
           <a
             href="https://github.com/Piliii/LibreNotes#readme"
             target="_blank"
             rel="noopener noreferrer"
-            className="shrink-0 rounded-lg border px-4 py-2 text-xs font-semibold transition-colors duration-200 hover:border-[#ff6900] hover:text-[#ff6900]"
+            className="shrink-0 rounded-lg border px-4 py-2 text-xs font-semibold transition-all duration-300 hover:rounded-[17px] hover:border-[#ff6900] hover:text-[#ff6900]"
             style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
           >
             Full README

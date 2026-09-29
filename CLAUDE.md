@@ -171,7 +171,7 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
    written, MR submitted to `fdroid/fdroiddata` (MR #41300), merged by
    maintainer `linsui`, and the app is now published at
    `https://f-droid.org/packages/dev.librenotes.app/`. Repo public on GitHub.
-   Current release: `v1.4.0`.
+   Current release: `v1.5.5`.
 8. **UI polish + color picker** — DONE: note color picker implemented. Mobile
    UI fully polished: staggered masonry grid, swipe-to-archive, pull-to-refresh,
    pinned/notes section headers, animated search header, frosted-glass bottom
@@ -583,7 +583,64 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       or affects the running app — both happen strictly during/after
       shutdown that has already completed from the user's perspective.
 
-26. **TODO — versioned roadmap, grouped by dependency and theme:**
+26. **Android release APK signed with a real, persisted keystore** — DONE:
+    - **Root cause (flagged externally 2026-09-29)**: androidfreeware.net
+      showed a "signed with a debug certificate" warning on the GitHub
+      Release APK. Accurate, not a false positive:
+      `clients/app/android/app/build.gradle.kts`'s `release` build type
+      pointed `signingConfig` at `signingConfigs.getByName("debug")` — the
+      Android Gradle Plugin's built-in auto-generated debug cert — and
+      `release.yml` never persisted a keystore across CI runs, so every
+      tagged build got a fresh, unique debug key. That's the same root cause
+      already documented under "Licensing & distribution" as breaking
+      direct-APK-to-direct-APK upgrades and guaranteeing a signer mismatch
+      against F-Droid's build of the same version.
+    - **Fix**: generated one real release keystore (RSA 2048, PKCS12,
+      10000-day validity, alias `librenotes`) with `keytool`, kept outside
+      the repo entirely at `~/.android-keys/` on this machine (not just
+      gitignored — never in the working tree at all). `build.gradle.kts` now
+      loads `android/key.properties` (already covered by
+      `clients/app/android/.gitignore`) when present and defines a real
+      `release` signing config from it; when absent — F-Droid's from-source
+      build, or a contributor without the key — it falls back to the debug
+      config exactly as before, so neither of those paths changed behavior.
+      `release.yml`'s `build-android` job gained a step that decodes a new
+      `ANDROID_KEYSTORE_BASE64` repo secret into `$RUNNER_TEMP/release.jks`
+      and writes a matching `key.properties` before `flutter build apk`,
+      guarded by `if: secrets.ANDROID_KEYSTORE_BASE64 != ''` so a fork
+      without the secret still builds (debug-signed, as before). Secrets
+      pushed to the `Piliii/LibreNotes` repo: `ANDROID_KEYSTORE_BASE64`,
+      `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD`,
+      `ANDROID_KEY_ALIAS`.
+    - **Verified locally**: a real `flutter build apk --release
+      --target-platform android-arm64` against the new `key.properties`
+      produced an APK whose `apksigner verify --print-certs` SHA-256
+      (`1f6ef3...d6a6`) matches the generated keystore's certificate —
+      confirms the debug fallback isn't silently still active.
+    - **Not yet verified against a real tagged CI run** — the `if:` guard,
+      secret decoding, and matrix behavior are correct by inspection and
+      match the already-verified local flow, but the actual GitHub Actions
+      job hasn't executed for real since this only runs on `v*` tag pushes,
+      which weren't part of this session per the "never push without being
+      asked" rule.
+    - **One-time transition cost, expected and unavoidable**: this keystore
+      is brand new, so it shares no lineage with any prior GitHub Release
+      APK (each of which was already a unique, mutually-incompatible debug
+      key, so nothing new is lost there) or with the F-Droid signer (never
+      shared to begin with). Anyone who installed a previous GitHub Release
+      APK will hit exactly one more signature-mismatch break upgrading into
+      the first release built with this keystore (same uninstall + reinstall
+      workaround as the pre-existing F-Droid case) — every release from this
+      one forward will then update in place normally.
+    - **Backed up**: `~/.android-keys/librenotes-release.jks` is backed up to
+      the VPS (`/root/backups/librenotes-keystore/`, `700`/`600` perms,
+      checksum-verified — see `CLAUDE-VPS.md`); the store/key passwords +
+      alias are in Vaultwarden. Losing all copies would reproduce this exact
+      problem permanently for anyone who's installed a version signed with
+      this key, with no recovery path — this is also the keystore the
+      "Google Play Store submission" item below depends on reusing.
+
+27. **TODO — versioned roadmap, grouped by dependency and theme:**
 
     **v1.6.0 — Packaging & sync infra.** Distribution reach plus the two
     remaining infra gaps.
@@ -685,24 +742,16 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       old client against a newer server schema, or vice versa) can't corrupt
       state or crash — audit `X-Librenotes-Api-Version` handling and the
       sync/wire-format assumptions in `notally_core` for gaps.
-    - **Persist a real Android release keystore in CI**: see the signing note
-      under "Licensing & distribution" — `release.yml`'s GitHub Release APK
-      is currently signed with a fresh debug key on every tagged build (no
-      keystore persisted between runs), which breaks in-place updates between
-      GitHub releases and guarantees a signer mismatch against the F-Droid
-      build of the same version. Generate one keystore, store it
-      base64-encoded as a GitHub Actions secret, and have `build-android` in
-      `release.yml` use it instead of the debug config.
     - **Google Play Store submission**: planned, as an additional Android
       distribution channel alongside F-Droid, GitHub Releases, and AUR — not
       a replacement for any of them. The app itself doesn't need to change to
       qualify (already Play-Services/Firebase/tracker-free per the F-Droid
-      audit); this is purely a distribution-channel addition. Depends on the
-      "Persist a real Android release keystore in CI" item above — Play
-      requires a stable app signing key across updates (either a
-      self-managed upload key + Play App Signing, or bring-your-own-key), so
-      the same keystore work needed to fix GitHub Release APK upgrades should
-      be done first rather than minting a separate Play-only key. Also needs:
+      audit); this is purely a distribution-channel addition. The release
+      keystore from item 26 above can be reused as the Play upload key (Play
+      requires a stable app signing key across updates — either a
+      self-managed upload key + Play App Signing, or bring-your-own-key) as
+      long as it's backed up per that item's follow-up note before this
+      ships. Also needs:
       a Google Play Console developer account ($25 one-time fee), a privacy
       policy page (the website already exists — could host it there), and
       Play's data-safety form filled out honestly (should be easy given

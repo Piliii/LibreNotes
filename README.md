@@ -3,7 +3,9 @@
 A private, self-hosted, end-to-end encrypted note-taking app. One owner, many
 devices. The server stores only ciphertext — it is encryption-blind by design.
 
-**Platforms:** Android (F-Droid-ready), Linux desktop, web  
+<a href="https://f-droid.org/packages/dev.librenotes.app/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="60"/></a>
+
+**Platforms:** Android (F-Droid), Linux desktop, web  
 **License:** AGPLv3
 
 ## Features

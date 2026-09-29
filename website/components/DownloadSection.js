@@ -1,5 +1,5 @@
 import { Download, Package, ArrowRight, Info } from 'lucide-react';
-import { siLinux, siArchlinux, siAndroid, siFdroid, siGithub } from 'simple-icons';
+import { siLinux, siArchlinux, siAndroid, siFdroid } from 'simple-icons';
 import BrandIcon from './BrandIcon';
 
 const GH_RELEASE = 'https://github.com/Piliii/LibreNotes/releases/latest';
@@ -9,7 +9,7 @@ const AUR_URL = 'https://aur.archlinux.org/packages/librenotes-bin';
 const LINUX_OPTIONS = [
   {
     label: 'AppImage',
-    description: 'Runs on any Linux distro, no install needed.',
+    description: 'Runs on any Linux distro.',
     href: GH_RELEASE,
     icon: <Download size={20} strokeWidth={1.6} />,
   },
@@ -115,7 +115,7 @@ export default function DownloadSection() {
               <DownloadCard
                 href={GH_RELEASE}
                 label="Direct APK"
-                description="arm64-v8a release APK from GitHub releases. Sideload manually."
+                description="arm64-v8a release APK from GitHub releases."
                 icon={<Download size={20} strokeWidth={1.6} />}
               />
             </div>
@@ -132,37 +132,19 @@ export default function DownloadSection() {
                 </p>
               </div>
               <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                One binary, runs on Linux. See the{' '}
+                Binary or Docker, runs on Linux. See{' '}
                 <a
-                  href="https://github.com/Piliii/LibreNotes#readme"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href="#server"
                   className="underline hover:text-[#ff6900]"
                   style={{ color: 'var(--text-primary)' }}
                 >
-                  README
+                  Server Setup
                 </a>{' '}
-                for setup. Takes about 5 minutes on a Raspberry Pi.
+                below.
               </p>
             </div>
           </div>
         </div>
-
-        {/* Footer */}
-        <p className="mt-14 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>
-          <span className="inline-flex items-center gap-1.5">
-            <BrandIcon icon={siGithub} size={13} />
-            <a
-              href="https://github.com/Piliii/LibreNotes"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-[#ff6900]"
-            >
-              Open source on GitHub
-            </a>
-          </span>
-          {' · '}AGPLv3 license
-        </p>
       </div>
     </section>
   );

@@ -76,6 +76,65 @@ abstract final class NotallyColors {
   static const textFaint = Color(0xFF888888);
 }
 
+/// A resolved set of text tones guaranteed to stay readable against a given
+/// note background. The fixed `NotallyColors.text*` tones are light-on-dark
+/// by design (they assume the app's own dark background) and silently lose
+/// contrast once a note's own custom/gradient color leans light — e.g. a
+/// near-white note would render near-white text on a near-white background.
+class NoteTextColors {
+  const NoteTextColors({
+    required this.bright,
+    required this.primary,
+    required this.muted,
+    required this.faint,
+  });
+
+  final Color bright;
+  final Color primary;
+  final Color muted;
+  final Color faint;
+
+  static const _onDark = NoteTextColors(
+    bright: NotallyColors.textBright,
+    primary: NotallyColors.textPrimary,
+    muted: NotallyColors.textMuted,
+    faint: NotallyColors.textFaint,
+  );
+
+  static const _onLight = NoteTextColors(
+    bright: Color(0xFF000000),
+    primary: Color(0xFF1A1A1A),
+    muted: Color(0xFF4D4D4D),
+    faint: Color(0xFF666666),
+  );
+
+  /// WCAG AA minimum contrast ratio for normal-sized text. Used as the actual
+  /// bar for "readable," rather than a naive luminance midpoint.
+  static const _minContrastRatio = 4.5;
+
+  /// Resolves the right tone set for a note's stored `color` (a solid hex or
+  /// a `grad:` gradient string).
+  ///
+  /// Picks whichever family's brightest tone (pure white vs. pure black)
+  /// clears [_minContrastRatio] against the background — using the *lightest*
+  /// of the background's stops, not their average, so a gradient with even
+  /// one light patch switches the whole note to dark text instead of letting
+  /// that one patch wash out. This is deliberately stricter than a 50%
+  /// luminance split: the luminance level at which white text actually stops
+  /// clearing 4.5:1 contrast is much lower than 0.5 (around ~0.18), so this
+  /// switches to dark text on plenty of "medium" backgrounds a midpoint check
+  /// would have left on light text.
+  factory NoteTextColors.forBackground(String color) {
+    final bases = noteBaseColors(color);
+    final maxLuminance =
+        bases.map((c) => c.computeLuminance()).reduce((a, b) => a > b ? a : b);
+    // WCAG contrast ratio of pure white against a background of this
+    // luminance: (1.0 + 0.05) / (L + 0.05).
+    final whiteContrast = 1.05 / (maxLuminance + 0.05);
+    return whiteContrast < _minContrastRatio ? _onLight : _onDark;
+  }
+}
+
 ThemeData buildNotallyTheme() {
   const c = NotallyColors.accent;
   final base = ThemeData.dark(useMaterial3: true);
@@ -109,11 +168,14 @@ ThemeData buildNotallyTheme() {
 }
 
 /// Markdown rendering styled for the dark theme (used by the editor preview).
-MarkdownStyleSheet notallyMarkdownStyle() {
-  const body = TextStyle(
-      color: NotallyColors.textPrimary, fontSize: 16, height: 1.5);
+/// [colors] lets callers rendering on top of a note's own custom/gradient
+/// background (see [NoteTextColors]) swap in a readable tone set instead of
+/// the default dark-background tones.
+MarkdownStyleSheet notallyMarkdownStyle({NoteTextColors? colors}) {
+  final c = colors ?? NoteTextColors._onDark;
+  final body = TextStyle(color: c.primary, fontSize: 16, height: 1.5);
   TextStyle heading(double size) => TextStyle(
-        color: NotallyColors.textBright,
+        color: c.bright,
         fontSize: size,
         fontWeight: FontWeight.w600,
         height: 1.3,
@@ -125,10 +187,8 @@ MarkdownStyleSheet notallyMarkdownStyle() {
     h3: heading(19),
     h4: heading(16),
     listBullet: body,
-    strong: const TextStyle(
-        color: NotallyColors.textBright, fontWeight: FontWeight.w700),
-    em: const TextStyle(
-        color: NotallyColors.textPrimary, fontStyle: FontStyle.italic),
+    strong: TextStyle(color: c.bright, fontWeight: FontWeight.w700),
+    em: TextStyle(color: c.primary, fontStyle: FontStyle.italic),
     a: const TextStyle(color: NotallyColors.accent),
     code: const TextStyle(
       color: NotallyColors.accent,
@@ -141,7 +201,7 @@ MarkdownStyleSheet notallyMarkdownStyle() {
       borderRadius: BorderRadius.circular(8),
     ),
     codeblockPadding: const EdgeInsets.all(12),
-    blockquote: const TextStyle(color: NotallyColors.textMuted),
+    blockquote: TextStyle(color: c.muted),
     blockquoteDecoration: const BoxDecoration(
       border: Border(left: BorderSide(color: NotallyColors.accent, width: 3)),
     ),

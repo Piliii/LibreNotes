@@ -273,6 +273,15 @@ class SyncService {
           continue;
         }
 
+        if (!note.deleted &&
+            note.rev == 0 &&
+            note.title.trim().isEmpty &&
+            note.body.trim().isEmpty) {
+          // Never-synced blank note (e.g. the auto-opened editor on startup) —
+          // don't push it until it actually has content.
+          continue;
+        }
+
         final PushResult result;
         if (note.deleted) {
           result = await api.deleteNote(note.id, note.rev);

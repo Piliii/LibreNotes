@@ -71,8 +71,11 @@ class _NoteEditorState extends State<NoteEditor> {
       _debounce?.cancel();
       if (!_loading) {
         if (_titleCtrl.text.isEmpty && _bodyCtrl.text.isEmpty) {
-          // No text ever written — discard the note silently.
-          widget.repo.purge(old.noteId);
+          // No text ever written — discard the note. Goes through the normal
+          // tombstone path (not a raw purge) so that if sync already pushed
+          // this note to the server, the delete propagates instead of
+          // silently orphaning it there to be resurrected on the next pull.
+          widget.repo.deleteNote(old.noteId);
         } else if (_titleCtrl.text != _savedTitle ||
             _bodyCtrl.text != _savedBody) {
           widget.repo.updateContent(
@@ -180,8 +183,9 @@ class _NoteEditorState extends State<NoteEditor> {
     _sub?.cancel();
     _bodyFocus.dispose();
     if (!_loading && _titleCtrl.text.isEmpty && _bodyCtrl.text.isEmpty) {
-      // No text ever written — discard the note silently.
-      widget.repo.purge(widget.noteId);
+      // No text ever written — discard the note. See didUpdateWidget above
+      // for why this must be a tombstone (deleteNote), not a raw purge.
+      widget.repo.deleteNote(widget.noteId);
     } else {
       _flush();
     }
@@ -190,8 +194,13 @@ class _NoteEditorState extends State<NoteEditor> {
     super.dispose();
   }
 
+  /// Text tones guaranteed to stay readable against this note's own
+  /// background color, however light/dark/custom/gradient it is.
+  NoteTextColors get _textColors => NoteTextColors.forBackground(_color);
+
   @override
   Widget build(BuildContext context) {
+    final textColors = _textColors;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 150),
       child: _loading
@@ -208,31 +217,35 @@ class _NoteEditorState extends State<NoteEditor> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _toolbar(),
+                  _toolbar(textColors),
                   const SizedBox(height: 4),
                   TextField(
                     controller: _titleCtrl,
-                    style: const TextStyle(
-                      color: NotallyColors.textBright,
+                    style: TextStyle(
+                      color: textColors.bright,
                       fontSize: 28,
                       fontWeight: FontWeight.w600,
                     ),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       isDense: true,
                       border: InputBorder.none,
                       hintText: 'Title',
-                      hintStyle: TextStyle(color: NotallyColors.textFaint),
+                      hintStyle: TextStyle(color: textColors.faint),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Expanded(child: _preview ? _previewBody() : _editBody()),
+                  Expanded(
+                    child: _preview
+                        ? _previewBody(textColors)
+                        : _editBody(textColors),
+                  ),
                 ],
               ),
             ),
     );
   }
 
-  Widget _toolbar() {
+  Widget _toolbar(NoteTextColors textColors) {
     return Row(
       children: [
         Expanded(
@@ -245,7 +258,7 @@ class _NoteEditorState extends State<NoteEditor> {
             style: TextStyle(
               color: _expiresAt != null
                   ? NotallyColors.accent
-                  : NotallyColors.textFaint,
+                  : textColors.faint,
               fontSize: 13,
             ),
           ),
@@ -268,22 +281,26 @@ class _NoteEditorState extends State<NoteEditor> {
                     icon: Icons.colorize,
                     tooltip: 'Note color',
                     onTap: _pickColor,
+                    color: textColors.faint,
                   ),
                   _ToolButton(
                     icon: _preview ? Icons.edit_outlined : Icons.visibility_outlined,
                     tooltip: _preview ? 'Edit' : 'Preview',
                     active: _preview,
                     onTap: () => setState(() => _preview = !_preview),
+                    color: textColors.faint,
                   ),
                   _ToolButton(
                     icon: Icons.archive_outlined,
                     tooltip: 'Archive',
                     onTap: _archive,
+                    color: textColors.faint,
                   ),
                   _ToolButton(
                     icon: Icons.delete_outline,
                     tooltip: 'Move to Trash',
                     onTap: _trash,
+                    color: textColors.faint,
                   ),
                 ],
               ),
@@ -294,19 +311,18 @@ class _NoteEditorState extends State<NoteEditor> {
     );
   }
 
-  Widget _editBody() {
+  Widget _editBody(NoteTextColors textColors) {
     return TextField(
       controller: _bodyCtrl,
       focusNode: _bodyFocus,
       expands: true,
       maxLines: null,
       textAlignVertical: TextAlignVertical.top,
-      style: const TextStyle(
-          color: NotallyColors.textPrimary, fontSize: 16, height: 1.5),
-      decoration: const InputDecoration(
+      style: TextStyle(color: textColors.primary, fontSize: 16, height: 1.5),
+      decoration: InputDecoration(
         border: InputBorder.none,
         hintText: 'Start typing… markdown supported',
-        hintStyle: TextStyle(color: NotallyColors.textFaint),
+        hintStyle: TextStyle(color: textColors.faint),
       ),
       contextMenuBuilder: _bodyContextMenuBuilder,
     );
@@ -401,19 +417,19 @@ class _NoteEditorState extends State<NoteEditor> {
     _bodyCtrl.value = applyHeading(_bodyCtrl.text, selection, result.level);
   }
 
-  Widget _previewBody() {
+  Widget _previewBody(NoteTextColors textColors) {
     final text = _bodyCtrl.text.trim();
     if (text.isEmpty) {
-      return const Align(
+      return Align(
         alignment: Alignment.topLeft,
         child: Text('Nothing to preview yet.',
-            style: TextStyle(color: NotallyColors.textFaint, fontSize: 15)),
+            style: TextStyle(color: textColors.faint, fontSize: 15)),
       );
     }
     return Markdown(
       data: text,
       padding: EdgeInsets.zero,
-      styleSheet: notallyMarkdownStyle(),
+      styleSheet: notallyMarkdownStyle(colors: textColors),
       inlineSyntaxes: [HighlightSyntax()],
       builders: {'mark': HighlightBuilder()},
       onTapLink: (_, href, __) async {
@@ -450,12 +466,14 @@ class _ToolButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onTap,
+    required this.color,
     this.active = false,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
+  final Color color;
   final bool active;
 
   @override
@@ -464,7 +482,7 @@ class _ToolButton extends StatelessWidget {
       tooltip: tooltip,
       onPressed: onTap,
       iconSize: 20,
-      color: active ? NotallyColors.accent : NotallyColors.textFaint,
+      color: active ? NotallyColors.accent : color,
       icon: Icon(icon),
     );
   }
@@ -490,7 +508,9 @@ class NoteEditorPage extends StatelessWidget {
     return StreamBuilder<NoteRow?>(
       stream: repo.watchNote(noteId),
       builder: (context, snap) {
-        final bg = noteBackgroundDecoration(snap.data?.color ?? '#2a2a2a');
+        final color = snap.data?.color ?? '#2a2a2a';
+        final bg = noteBackgroundDecoration(color);
+        final textColors = NoteTextColors.forBackground(color);
         return AnimatedContainer(
           duration: const Duration(milliseconds: 280),
           curve: Curves.easeOut,
@@ -501,7 +521,7 @@ class NoteEditorPage extends StatelessWidget {
               backgroundColor: Colors.transparent,
               elevation: 0,
               scrolledUnderElevation: 0,
-              iconTheme: const IconThemeData(color: NotallyColors.textPrimary),
+              iconTheme: IconThemeData(color: textColors.primary),
             ),
             body: SafeArea(
               child: NoteEditor(

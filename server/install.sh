@@ -8,6 +8,15 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
+if [ ! -d /run/systemd/system ]; then
+  echo "This installer sets up a systemd service, but systemd isn't running" >&2
+  echo "as PID 1 on this system (checked for /run/systemd/system)." >&2
+  echo "" >&2
+  echo "Use the Docker image instead - it works on any Linux distro" >&2
+  echo "regardless of init system: https://librenotes.ayopili.com/dl/docker-compose" >&2
+  exit 1
+fi
+
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 

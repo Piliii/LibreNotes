@@ -21,6 +21,25 @@ jobs:
         with:
           flutter-version: '3.32.2'
 
+      # Real release signing key, decoded from a secret rather than checked
+      # into git. Skipped (falls back to debug signing) if the secret isn't
+      # configured, e.g. on a fork. See CLAUDE.md "Licensing & distribution."
+      - name: Set up release signing
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        working-directory: clients/app/android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          cat > key.properties <<EOF
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=$RUNNER_TEMP/release.jks
+          EOF
+
       - name: Build APK
         working-directory: clients/app
         run: |
@@ -68,13 +87,21 @@ jobs:
 
   # ── Server tarball ───────────────────────────────────────────────────────────
   build-server:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
+          architecture: ${{ matrix.arch }}
 
       - name: Install libsqlite3
         run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
@@ -84,7 +111,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: server-tarball
+          name: server-tarball-${{ matrix.arch }}
           path: dist/librenotes-server-*.tar.gz
 
   # ── GitHub release ───────────────────────────────────────────────────────────

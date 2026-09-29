@@ -249,6 +249,17 @@ class _HomeScreenState extends State<HomeScreen> {
         .toList();
   }
 
+  /// Contentless notes (no title, no body — e.g. a freshly auto-opened but
+  /// untouched editor) are excluded from what's *shown as a card/tab*, but
+  /// must stay in the raw list used for the selected-note existence check
+  /// below, or the currently-open blank note would wrongly fall back to the
+  /// empty-editor placeholder.
+  List<NoteRow> _visible(List<NoteRow> notes) {
+    return notes
+        .where((n) => n.title.trim().isNotEmpty || n.body.trim().isNotEmpty)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -261,7 +272,7 @@ class _HomeScreenState extends State<HomeScreen> {
               MediaQuery.sizeOf(context).width >= _desktopBreakpoint;
           return isDesktop
               ? _desktop(allNotes, displayed)
-              : _mobile(displayed, allNotes.length);
+              : _mobile(_visible(displayed), allNotes.length);
         },
       ),
     );
@@ -271,8 +282,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _desktop(List<NoteRow> allNotes, List<NoteRow> filteredNotes) {
     final child = switch (_layout) {
-      _DesktopLayout.sidebar => _desktopSidebar(filteredNotes),
-      _DesktopLayout.tabs => _desktopTabs(allNotes),
+      _DesktopLayout.sidebar =>
+        _desktopSidebar(_visible(filteredNotes), allNotes),
+      _DesktopLayout.tabs => _desktopTabs(_visible(allNotes), allNotes),
     };
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 220),
@@ -280,8 +292,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _desktopSidebar(List<NoteRow> notes) {
-    final selected = notes.any((n) => n.id == _selectedId) ? _selectedId : null;
+  Widget _desktopSidebar(List<NoteRow> notes, List<NoteRow> allNotes) {
+    final selected =
+        allNotes.any((n) => n.id == _selectedId) ? _selectedId : null;
     final multiCount = _selectedIds.length;
     return Row(
       children: [
@@ -346,8 +359,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _desktopTabs(List<NoteRow> notes) {
-    final selected = notes.any((n) => n.id == _selectedId) ? _selectedId : null;
+  Widget _desktopTabs(List<NoteRow> notes, List<NoteRow> allNotes) {
+    final selected =
+        allNotes.any((n) => n.id == _selectedId) ? _selectedId : null;
     return Column(
       children: [
         Container(
@@ -1232,6 +1246,7 @@ class _NoteListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textColors = NoteTextColors.forBackground(note.color);
     final bases = noteBaseColors(note.color).map((c) =>
         isMultiSelected ? Color.lerp(c, NotallyColors.accent, 0.12)! : c);
     final List<Color> gradientColors;
@@ -1322,8 +1337,8 @@ class _NoteListItem extends StatelessWidget {
                                 // like a real title would — no dimming even
                                 // when the row isn't the active selection.
                                 color: (active || note.title.isEmpty)
-                                    ? NotallyColors.textBright
-                                    : NotallyColors.textBright
+                                    ? textColors.bright
+                                    : textColors.bright
                                         .withValues(alpha: 0.92),
                                 fontSize: 14,
                                 // Only bold titles, not body-as-fallback text.
@@ -1350,8 +1365,7 @@ class _NoteListItem extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                              color: NotallyColors.textMuted
-                                  .withValues(alpha: 0.85),
+                              color: textColors.muted.withValues(alpha: 0.85),
                               fontSize: 12),
                         ),
                       ],
@@ -1696,6 +1710,7 @@ class _NoteCardState extends State<_NoteCard>
   @override
   Widget build(BuildContext context) {
     final bases = noteBaseColors(widget.note.color);
+    final textColors = NoteTextColors.forBackground(widget.note.color);
     final List<Color> gradientColors;
     final List<double> gradientStops;
     final Color shadowTint;
@@ -1774,8 +1789,8 @@ class _NoteCardState extends State<_NoteCard>
                             widget.note.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: NotallyColors.textBright,
+                            style: TextStyle(
+                                color: textColors.bright,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
                                 height: 1.3),
@@ -1813,8 +1828,8 @@ class _NoteCardState extends State<_NoteCard>
                         // secondary-preview shade so it doesn't blend into
                         // the card background.
                         color: widget.note.title.isEmpty
-                            ? NotallyColors.textBright.withValues(alpha: 0.85)
-                            : NotallyColors.textMuted.withValues(alpha: 0.9),
+                            ? textColors.bright.withValues(alpha: 0.85)
+                            : textColors.muted.withValues(alpha: 0.9),
                         fontSize: 13,
                         height: 1.45),
                   ),
@@ -1822,7 +1837,7 @@ class _NoteCardState extends State<_NoteCard>
                   Text(
                     relativeTime(widget.note.updatedAt),
                     style: TextStyle(
-                        color: NotallyColors.textFaint.withValues(alpha: 0.75),
+                        color: textColors.faint.withValues(alpha: 0.75),
                         fontSize: 11),
                   ),
                 ],

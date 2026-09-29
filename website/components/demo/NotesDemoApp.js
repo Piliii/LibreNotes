@@ -18,7 +18,7 @@ function useIsMobile() {
 }
 
 export default function NotesDemoApp() {
-  const { notes, hydrated, createNote, updateNote, deleteNote } = useNotes();
+  const { notes, hydrated, createNote, updateNote, deleteNote, archiveNote } = useNotes();
   const isMobile = useIsMobile();
   const [selectedId, setSelectedId] = useState(null);
   // On mobile: 'list' or 'editor' view
@@ -44,6 +44,12 @@ export default function NotesDemoApp() {
 
   function handleDelete(id) {
     const nextId = deleteNote(id);
+    setSelectedId(nextId);
+    if (isMobile) setMobileView('list');
+  }
+
+  function handleArchive(id) {
+    const nextId = archiveNote(id);
     setSelectedId(nextId);
     if (isMobile) setMobileView('list');
   }
@@ -74,6 +80,7 @@ export default function NotesDemoApp() {
             note={selectedNote}
             onUpdate={updateNote}
             onDelete={handleDelete}
+            onArchive={handleArchive}
             onBack={() => setMobileView('list')}
           />
         )}
@@ -95,6 +102,7 @@ export default function NotesDemoApp() {
         note={selectedNote}
         onUpdate={updateNote}
         onDelete={handleDelete}
+        onArchive={handleArchive}
       />
     </div>
   );

@@ -1,0 +1,3 @@
+- Fixed ghost empty notes reappearing after being deleted, and no longer shows notes with no text in the list
+- Note text now automatically switches to dark or light so it stays readable on any custom or gradient background color
+- GitHub Release APKs are now signed with a persistent release key, so in-place updates between releases work correctly

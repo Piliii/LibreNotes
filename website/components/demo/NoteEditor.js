@@ -5,6 +5,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { Palette, Pencil, Eye, Archive, Trash2 } from 'lucide-react';
+import { timeAgo } from './format';
+
+// Same rotation the real app's color picker offers, cycled on each click
+// instead of a full swatch popover (the marketing demo doesn't need one).
+const COLOR_CYCLE = [null, '#3a2a1e', '#1e3a5f', '#2a1e3a', '#1e3a2a'];
 
 const S = {
   h1: { color: '#f0f0f0', fontSize: '1.5rem', fontWeight: 700, margin: '0.8em 0 0.4em', lineHeight: 1.3 },
@@ -76,7 +82,20 @@ const mdComponents = {
   },
 };
 
-export default function NoteEditor({ note, onUpdate, onDelete, onBack }) {
+function ToolButton({ onClick, title, active, children }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="flex items-center justify-center rounded-full p-1.5 transition-colors hover:brightness-125"
+      style={{ color: active ? 'var(--accent)' : 'var(--text-secondary)' }}
+    >
+      {children}
+    </button>
+  );
+}
+
+export default function NoteEditor({ note, onUpdate, onDelete, onArchive, onBack }) {
   const [tab, setTab] = useState('write');
   const [title, setTitle] = useState(note?.title ?? '');
   const [body, setBody] = useState(note?.body ?? '');
@@ -107,6 +126,11 @@ export default function NoteEditor({ note, onUpdate, onDelete, onBack }) {
     saveTimer.current = setTimeout(() => flush(title, b), 500);
   }
 
+  function cycleColor() {
+    const i = COLOR_CYCLE.indexOf(note.color ?? null);
+    onUpdate(note.id, { color: COLOR_CYCLE[(i + 1) % COLOR_CYCLE.length] });
+  }
+
   if (!note) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -118,13 +142,13 @@ export default function NoteEditor({ note, onUpdate, onDelete, onBack }) {
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden" style={{ background: 'var(--bg-base)' }}>
+    <div className="flex flex-1 flex-col overflow-hidden transition-colors duration-300" style={{ background: note.color ?? 'var(--bg-base)' }}>
       {/* Toolbar */}
       <div
-        className="flex items-center justify-between gap-3 border-b px-4 py-2"
+        className="flex items-center justify-between gap-3 border-b px-4 py-3"
         style={{ borderColor: 'var(--border)' }}
       >
-        {onBack && (
+        {onBack ? (
           <button
             onClick={onBack}
             className="flex items-center gap-1 text-sm md:hidden"
@@ -135,46 +159,44 @@ export default function NoteEditor({ note, onUpdate, onDelete, onBack }) {
             </svg>
             Notes
           </button>
+        ) : (
+          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            Edited {timeAgo(note.updatedAt ?? note.createdAt)}
+          </span>
         )}
 
         <div
-          className="flex rounded-md overflow-hidden text-xs font-medium"
-          style={{ background: 'var(--bg-surface)' }}
+          className="ml-auto flex items-center gap-0.5 rounded-full px-1 py-0.5"
+          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}
         >
-          {['write', 'preview'].map(t => (
-            <button
-              key={t}
-              onClick={() => { if (t !== 'write') flush(title, body); setTab(t); }}
-              className="px-3 py-1.5 capitalize transition-colors"
-              style={{
-                background: tab === t ? 'var(--accent)' : 'transparent',
-                color: tab === t ? '#fff' : 'var(--text-secondary)',
-              }}
-            >
-              {t}
-            </button>
-          ))}
+          <ToolButton title="Note color" onClick={cycleColor}>
+            <Palette size={18} strokeWidth={1.8} />
+          </ToolButton>
+          <ToolButton
+            title={tab === 'preview' ? 'Edit' : 'Preview'}
+            active={tab === 'preview'}
+            onClick={() => {
+              if (tab === 'write') flush(title, body);
+              setTab(tab === 'preview' ? 'write' : 'preview');
+            }}
+          >
+            {tab === 'preview' ? <Pencil size={18} strokeWidth={1.8} /> : <Eye size={18} strokeWidth={1.8} />}
+          </ToolButton>
+          <ToolButton title="Archive" onClick={() => onArchive(note.id)}>
+            <Archive size={18} strokeWidth={1.8} />
+          </ToolButton>
+          <ToolButton title="Move to Trash" onClick={() => onDelete(note.id)}>
+            <Trash2 size={18} strokeWidth={1.8} />
+          </ToolButton>
         </div>
-
-        <button
-          onClick={() => onDelete(note.id)}
-          className="ml-auto rounded p-1.5 transition-colors hover:text-red-400"
-          style={{ color: 'var(--text-secondary)' }}
-          title="Delete note"
-        >
-          <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-            <path d="M2 4h11M5 4V2.5A.5.5 0 0 1 5.5 2h4a.5.5 0 0 1 .5.5V4M6 7v4M9 7v4M3 4l.8 8.1A1 1 0 0 0 4.8 13h5.4a1 1 0 0 0 1-.9L12 4"
-              stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
       </div>
 
       {/* Content */}
-      <div className="flex flex-1 flex-col overflow-hidden p-4 gap-3">
+      <div className="flex flex-1 flex-col overflow-hidden p-6 gap-3">
         {tab === 'write' ? (
           <>
             <input
-              className="w-full bg-transparent text-xl font-bold outline-none placeholder:opacity-40"
+              className="w-full bg-transparent text-3xl font-semibold outline-none placeholder:opacity-30 placeholder:font-normal"
               style={{ color: 'var(--text-primary)' }}
               placeholder="Title"
               value={title}
@@ -183,7 +205,7 @@ export default function NoteEditor({ note, onUpdate, onDelete, onBack }) {
             <textarea
               className="flex-1 w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:opacity-30"
               style={{ color: 'var(--text-primary)' }}
-              placeholder="Write in markdown..."
+              placeholder="Start typing… markdown supported"
               value={body}
               onChange={handleBody}
             />

@@ -26,6 +26,7 @@ The real app syncs to *your own server* over an encrypted connection. No cloud, 
 - **Self-hosted** - you own the data
 - **Open source** - AGPLv3`,
     createdAt: Date.now() - 1000 * 60 * 5,
+    updatedAt: Date.now() - 1000 * 60 * 5,
     pinned: true,
     color: null,
   },
@@ -60,6 +61,7 @@ const greet = name => \`Hello, \${name}!\`;
 
 > Blockquotes look great too.`,
     createdAt: Date.now() - 1000 * 60 * 60,
+    updatedAt: Date.now() - 1000 * 60 * 60,
     pinned: false,
     color: null,
   },
@@ -71,6 +73,7 @@ const greet = name => \`Hello, \${name}!\`;
 - [ ] Eggs
 - [x] Coffee ✓`,
     createdAt: Date.now() - 1000 * 60 * 60 * 3,
+    updatedAt: Date.now() - 1000 * 60 * 60 * 3,
     pinned: false,
     color: '#1e3a5f',
   },
@@ -111,7 +114,9 @@ export function useNotes() {
       title: '',
       body: '',
       createdAt: Date.now(),
+      updatedAt: Date.now(),
       pinned: false,
+      archived: false,
       color: null,
     };
     const next = [note, ...notes];
@@ -120,20 +125,28 @@ export function useNotes() {
   }
 
   function updateNote(id, patch) {
-    const next = notes.map(n => (n.id === id ? { ...n, ...patch } : n));
+    const next = notes.map(n => (n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n));
     update(next);
   }
 
   function deleteNote(id) {
     const next = notes.filter(n => n.id !== id);
     update(next);
-    return next[0]?.id ?? null;
+    return next.find(n => !n.archived)?.id ?? null;
   }
 
-  const sorted = [...notes].sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-    return b.createdAt - a.createdAt;
-  });
+  function archiveNote(id) {
+    const next = notes.map(n => (n.id === id ? { ...n, archived: true, updatedAt: Date.now() } : n));
+    update(next);
+    return next.find(n => n.id !== id && !n.archived)?.id ?? null;
+  }
 
-  return { notes: sorted, hydrated, createNote, updateNote, deleteNote };
+  const sorted = [...notes]
+    .filter(n => !n.archived)
+    .sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return b.createdAt - a.createdAt;
+    });
+
+  return { notes: sorted, hydrated, createNote, updateNote, deleteNote, archiveNote };
 }

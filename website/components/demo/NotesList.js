@@ -1,16 +1,19 @@
 'use client';
 
-function snippet(body) {
-  const plain = body.replace(/[#*`~_\[\]>]/g, '').replace(/\n+/g, ' ').trim();
-  return plain.length > 120 ? plain.slice(0, 120) + '…' : plain;
-}
+import { useState } from 'react';
+import { Search, MoreVertical, CloudCheck, Pin, Plus } from 'lucide-react';
+import { snippet } from './format';
 
-function timeAgo(ts) {
-  const diff = Date.now() - ts;
-  if (diff < 60_000) return 'just now';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  return `${Math.floor(diff / 86_400_000)}d ago`;
+// Small uppercase section label ("PINNED" / "NOTES")
+function SectionHeader({ children }) {
+  return (
+    <p
+      className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-widest"
+      style={{ color: 'var(--text-secondary)', opacity: 0.6 }}
+    >
+      {children}
+    </p>
+  );
 }
 
 // Sidebar row (desktop)
@@ -18,31 +21,26 @@ function NoteRow({ note, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-left px-3 py-3 rounded-lg transition-colors"
+      className="w-full text-left rounded-xl p-3.5 transition-colors"
       style={{
-        background: active ? 'var(--bg-elevated)' : 'transparent',
+        background: active ? 'var(--bg-elevated)' : 'var(--bg-surface)',
         borderLeft: active ? '3px solid var(--accent)' : '3px solid transparent',
       }}
     >
       <div className="flex items-center gap-1.5">
-        {note.pinned && (
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="var(--accent)">
-            <path d="M5 0l1.2 3.5H10L7.1 5.7l1.1 3.5L5 7.5l-3.2 1.7 1.1-3.5L0 3.5h3.8z" />
-          </svg>
-        )}
         <span
-          className="truncate text-sm font-medium"
-          style={{ color: note.title ? 'var(--text-primary)' : 'var(--text-secondary)' }}
+          className={note.title ? 'truncate text-sm font-medium' : 'line-clamp-2 flex-1 text-sm'}
+          style={{ color: 'var(--text-primary)' }}
         >
-          {note.title || 'Untitled'}
+          {note.title || snippet(note.body) || 'No additional text'}
         </span>
+        {note.pinned && <Pin size={12} style={{ color: 'var(--accent)', opacity: 0.8, flexShrink: 0 }} />}
       </div>
-      <p className="mt-0.5 text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
-        {snippet(note.body) || 'No content'}
-      </p>
-      <p className="mt-1 text-[10px]" style={{ color: 'var(--text-secondary)', opacity: 0.6 }}>
-        {timeAgo(note.createdAt)}
-      </p>
+      {note.title && (
+        <p className="mt-0.5 text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
+          {snippet(note.body) || 'No additional text'}
+        </p>
+      )}
     </button>
   );
 }
@@ -52,10 +50,19 @@ function NoteCard({ note, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="text-left rounded-xl p-4 transition-colors hover:brightness-110"
-      style={{ background: note.color ?? 'var(--bg-surface)', minHeight: 120 }}
+      className="relative text-left rounded-xl p-4 transition-colors hover:brightness-110"
+      style={{
+        background: note.color ?? 'var(--bg-surface)',
+        minHeight: 120,
+        borderLeft: note.pinned ? '3px solid var(--accent)' : '3px solid transparent',
+      }}
     >
-      <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+      {note.pinned && (
+        <span className="absolute right-3 top-3">
+          <Pin size={13} style={{ color: 'var(--accent)' }} />
+        </span>
+      )}
+      <p className="text-sm font-semibold truncate pr-4" style={{ color: 'var(--text-primary)' }}>
         {note.title || 'Untitled'}
       </p>
       <p className="mt-2 text-xs leading-relaxed line-clamp-4" style={{ color: 'var(--text-secondary)' }}>
@@ -66,6 +73,17 @@ function NoteCard({ note, onClick }) {
 }
 
 export default function NotesList({ notes, selectedId, onSelect, onNew, view }) {
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+
+  const filtered = q
+    ? notes.filter(n => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q))
+    : notes;
+
+  const pinned = filtered.filter(n => n.pinned);
+  const unpinned = filtered.filter(n => !n.pinned);
+  const hasSections = !q && pinned.length > 0 && unpinned.length > 0;
+
   if (view === 'grid') {
     // Mobile: 2-column card grid
     return (
@@ -76,17 +94,38 @@ export default function NotesList({ notes, selectedId, onSelect, onNew, view }) 
           </span>
           <NewButton onClick={onNew} />
         </div>
-        <div className="flex-1 overflow-y-auto px-4 pb-4">
-          <div className="grid grid-cols-2 gap-3">
-            {notes.map(n => (
-              <NoteCard key={n.id} note={n} onClick={() => onSelect(n.id)} />
-            ))}
-            {notes.length === 0 && (
-              <p className="col-span-2 text-sm text-center py-12" style={{ color: 'var(--text-secondary)' }}>
-                No notes yet. Create one!
-              </p>
-            )}
-          </div>
+        <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
+          {hasSections ? (
+            <>
+              <div>
+                <SectionHeader>Pinned</SectionHeader>
+                <div className="grid grid-cols-2 gap-3">
+                  {pinned.map(n => (
+                    <NoteCard key={n.id} note={n} onClick={() => onSelect(n.id)} />
+                  ))}
+                </div>
+              </div>
+              <div>
+                <SectionHeader>Notes</SectionHeader>
+                <div className="grid grid-cols-2 gap-3">
+                  {unpinned.map(n => (
+                    <NoteCard key={n.id} note={n} onClick={() => onSelect(n.id)} />
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {filtered.map(n => (
+                <NoteCard key={n.id} note={n} onClick={() => onSelect(n.id)} />
+              ))}
+            </div>
+          )}
+          {filtered.length === 0 && (
+            <p className="text-sm text-center py-12" style={{ color: 'var(--text-secondary)' }}>
+              {notes.length === 0 ? 'No notes yet. Create one!' : 'No notes match'}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -96,29 +135,74 @@ export default function NotesList({ notes, selectedId, onSelect, onNew, view }) 
   return (
     <div
       className="flex flex-col h-full overflow-hidden border-r"
-      style={{ borderColor: 'var(--border)', width: 260, flexShrink: 0 }}
+      style={{ borderColor: 'var(--border)', width: 280, flexShrink: 0 }}
     >
-      <div
-        className="flex items-center justify-between px-3 py-3 border-b"
-        style={{ borderColor: 'var(--border)' }}
-      >
-        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Notes
-        </span>
-        <NewButton onClick={onNew} />
-      </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-        {notes.map(n => (
-          <NoteRow
-            key={n.id}
-            note={n}
-            active={n.id === selectedId}
-            onClick={() => onSelect(n.id)}
+      <div className="flex flex-col gap-3 px-3 pt-4 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
+            Notes
+          </span>
+          <div className="flex items-center gap-3">
+            <button style={{ color: 'var(--text-secondary)' }} title="More">
+              <MoreVertical size={18} strokeWidth={1.8} />
+            </button>
+            <CloudCheck size={18} strokeWidth={1.8} style={{ color: '#4CAF50' }} />
+          </div>
+        </div>
+
+        <div
+          className="flex items-center gap-2 rounded-lg px-3 py-2 border"
+          style={{ background: 'var(--bg-base)', borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+        >
+          <Search size={16} strokeWidth={1.8} />
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search notes…"
+            className="w-full bg-transparent text-sm outline-none placeholder:opacity-70"
+            style={{ color: 'var(--text-primary)' }}
           />
-        ))}
-        {notes.length === 0 && (
+        </div>
+
+        <button
+          onClick={onNew}
+          className="rounded-lg py-2.5 text-sm font-semibold transition-colors hover:brightness-90"
+          style={{ background: 'var(--accent)', color: '#fff' }}
+        >
+          + New Note
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-2 space-y-3">
+        {hasSections ? (
+          <>
+            <div>
+              <SectionHeader>Pinned</SectionHeader>
+              <div className="space-y-1.5">
+                {pinned.map(n => (
+                  <NoteRow key={n.id} note={n} active={n.id === selectedId} onClick={() => onSelect(n.id)} />
+                ))}
+              </div>
+            </div>
+            <div>
+              <SectionHeader>Notes</SectionHeader>
+              <div className="space-y-1.5">
+                {unpinned.map(n => (
+                  <NoteRow key={n.id} note={n} active={n.id === selectedId} onClick={() => onSelect(n.id)} />
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="space-y-1.5">
+            {filtered.map(n => (
+              <NoteRow key={n.id} note={n} active={n.id === selectedId} onClick={() => onSelect(n.id)} />
+            ))}
+          </div>
+        )}
+        {filtered.length === 0 && (
           <p className="text-xs text-center py-8" style={{ color: 'var(--text-secondary)' }}>
-            No notes yet.
+            {notes.length === 0 ? 'No notes yet' : 'No notes match'}
           </p>
         )}
       </div>
@@ -133,9 +217,7 @@ function NewButton({ onClick }) {
       className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors hover:brightness-90"
       style={{ background: 'var(--accent)', color: '#fff' }}
     >
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-        <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      </svg>
+      <Plus size={13} strokeWidth={2.2} />
       New
     </button>
   );
