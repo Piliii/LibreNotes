@@ -13,7 +13,7 @@ rename those, they're just library identifiers.
 - **Clients (all Flutter/Dart, one codebase):** website, native Linux desktop,
   native Android. **No Electron** (the owner refuses Electron on privacy
   grounds — don't propose it). Native Windows desktop support is planned (see
-  roadmap v1.9.0) — Flutter's Windows target is a native Win32 build, not
+  roadmap v1.8.0) — Flutter's Windows target is a native Win32 build, not
   Electron, so it doesn't conflict with that rule.
 - **Notes:** markdown text. Desktop = notes list on the left, editor on the
   right. Mobile = staggered 2-column masonry grid of cards (body preview only
@@ -74,16 +74,33 @@ LibreNotes/
 │   ├── bin/server.dart      Entry point (env config, token, graceful stop).
 │   ├── lib/db.dart          SQLite data layer + conflict logic.
 │   ├── lib/api.dart         HTTP routes + bearer-token auth.
-│   └── test/db_test.dart    Core sync/conflict tests (in-memory db).
+│   ├── test/db_test.dart    Core sync/conflict tests (in-memory db).
+│   └── Dockerfile           Server image (published to GHCR by docker.yml).
+├── scripts/                 package-linux.sh (AppImage + tarball), package-server.sh
+│                            (server tarball + install.sh/backup.sh), bump-version.sh.
+├── website/                 Next.js + Tailwind static export (marketing site, changelog
+│                            page, live demo); deployed via Vercel, redirects in vercel.json.
+├── .github/                 workflows/ (release.yml: tag-push + manual-dispatch release
+│                            build; docker.yml), ISSUE_TEMPLATE/.
+├── docker-compose.yml       Server deployment.
+├── CHANGELOG.md, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md, LICENSE, README.md
 └── clients/app/             Flutter client (desktop + Android + web, one codebase).
     ├── lib/main.dart        Wires AppDatabase → NotesRepository → SyncService → UI.
-    ├── lib/data/            Drift local store (database.dart) + notes_repository.dart.
+    ├── lib/data/            Drift local store (database.dart), notes_repository.dart
+    │                        (the plaintext/ciphertext boundary), local_key_manager.dart.
     ├── lib/sync/            sync_service.dart (pull/push loop), sync_api.dart,
     │                        note_crypto.dart (Argon2id + XChaCha20-Poly1305, client-only).
     ├── lib/ui/              home_screen, note_editor, conflicts_page, sync_settings_page,
-    │                        archive_page.dart, trash_page.dart.
+    │                        archive_page, trash_page, import_export_page,
+    │                        locked_recovery_screen, outdated_app_screen.
+    ├── lib/desktop/         quick_capture.dart (global hotkey, Linux).
+    ├── lib/android/         share_intent.dart (share-sheet target).
+    ├── lib/                 theme.dart, format.dart, markdown_editing_controller.dart,
+    │                        markdown_format.dart, markdown_highlight.dart.
     ├── fastlane/            F-Droid metadata (title, description, changelogs).
-    └── test/                sync_e2e (real in-process server), note_editor regression, etc.
+    └── test/                sync_e2e (real in-process server), note_editor regression,
+                             repository/crypto/format tests, database_downgrade_guard,
+                             sync_api_version.
 ```
 
 The server is **shelf**, not dart_frog: dependency-light, no global CLI,
@@ -121,23 +138,21 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
   to the self-hosted server. Release builds are **arm64-v8a only** (`ndk
   abiFilters` in `android/app/build.gradle.kts`) and ship **release, not debug**.
   The `INTERNET` permission is declared in the *main* manifest (not just debug),
-  or release sync silently fails. Release still uses the debug signing config
-  (`android/app/build.gradle.kts`) — harmless for F-Droid itself, since F-Droid
-  always builds from source and re-signs with its own repo key regardless of
-  what signs the build. It does bite the **GitHub Release APK**, though:
-  `release.yml`'s runners don't persist a keystore, so every tagged CI build
-  mints a fresh, unique debug key. Consequence, confirmed 2026-09-28 against a
-  real device: a phone with LibreNotes installed from a GitHub Release APK (or
-  any non-F-Droid build) will *never* show F-Droid updates as installable —
-  F-Droid's client falls back to a plain "Open" button and reports "no
-  versions with compatible signer" in the version list, since Android refuses
-  to let F-Droid overwrite an app signed with a different certificate. Same
-  problem strikes direct-APK-to-direct-APK upgrades between releases, since
-  each GitHub build's debug key differs from the last. Only fix on an affected
-  device is uninstall + reinstall from the desired source. A real fix needs a
-  dedicated, persisted release keystore (generated once, stored as a GitHub
-  Actions secret, reused by every CI run) — not done yet; see the roadmap's
-  "not version-gated" list.
+  or release sync silently fails. Release builds are signed with a real,
+  persisted keystore when `android/key.properties` exists (GitHub Release CI
+  decodes it from the `ANDROID_KEYSTORE_BASE64` secret — see item 26); without
+  it (F-Droid's from-source build, or a contributor without the key) the build
+  falls back to the debug signing config. That fallback is harmless for
+  F-Droid itself, since F-Droid always builds from source and re-signs with
+  its own repo key regardless of what signs the build. **F-Droid-signed and
+  GitHub-signed builds still have permanently different signers**, so a phone
+  with LibreNotes installed from a GitHub Release APK will never show F-Droid
+  updates as installable (F-Droid's client falls back to a plain "Open" button
+  and reports "no versions with compatible signer", confirmed 2026-09-28
+  against a real device), and vice versa; the only fix is uninstall +
+  reinstall from the desired source. Direct-APK-to-direct-APK upgrades work
+  in place from the first release built with the persisted keystore onward;
+  APKs from before it were each signed with a different throwaway debug key.
 - **F-Droid status:** LIVE. App is published in the official F-Droid repo at
   `https://f-droid.org/packages/dev.librenotes.app/` — installable via the
   F-Droid client, no manual APK download needed. Fastlane metadata +
@@ -146,7 +161,7 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
   `https://gitlab.com/fdroid/fdroiddata/-/merge_requests/41300`, merged into
   `fdroiddata` master (squashed as `4935c52e`) by maintainer `linsui`, then
   built + signed by F-Droid's build server. Repo is public at
-  `https://github.com/Piliii/LibreNotes`, tagged `v1.2.0`. Future releases
+  `https://github.com/Piliii/LibreNotes` (see `git tag` for the current release). Future releases
   need a version bump + tag; F-Droid's server picks up new tags automatically
   and rebuilds (no new MR needed unless the build recipe itself changes).
 
@@ -171,7 +186,7 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
    written, MR submitted to `fdroid/fdroiddata` (MR #41300), merged by
    maintainer `linsui`, and the app is now published at
    `https://f-droid.org/packages/dev.librenotes.app/`. Repo public on GitHub.
-   Current release: `v1.5.5`.
+   Current release: see the latest git tag / `CHANGELOG.md` (item 27 for v1.5.5).
 8. **UI polish + color picker** — DONE: note color picker implemented. Mobile
    UI fully polished: staggered masonry grid, swipe-to-archive, pull-to-refresh,
    pinned/notes section headers, animated search header, frosted-glass bottom
@@ -179,8 +194,8 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
    multi-layer shadows). Desktop polished: gradient+shadow sidebar list items,
    pinned/notes section headers, better empty-editor state. Timestamps now show
    "Dec 1" / "Dec 1 2024" format; markdown link artifacts stripped from previews.
-9. **Linux distribution** — DONE: AppImage + tarball (attached to GitHub release
-   v1.2.0), AUR (`librenotes-bin`) live. Flatpak dropped (not worth maintaining).
+9. **Linux distribution** — DONE: AppImage + tarball (attached to each GitHub
+   release), AUR (`librenotes-bin`) live. Flatpak dropped (not worth maintaining).
    Packaging scripts: `scripts/package-linux.sh`, `scripts/package-server.sh`.
 10. **Marketing website** — DONE: Next.js + Tailwind static export in `website/`.
     Sections: hero, Android screenshots, features, live demo (React/localStorage),
@@ -231,9 +246,8 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
     (Contributor Covenant 2.1), `.github/ISSUE_TEMPLATE/` (bug report + feature
     request forms, plus a `config.yml` disabling blank issues and linking to
     security advisories/discussions), and a root `CHANGELOG.md` seeded from
-    the real tag history (v1.0.1 → v1.2.1). **Still needs a manual step:**
-    enable GitHub Discussions in repo settings (Settings → Features) — the
-    issue template config links to it.
+    the real tag history (v1.0.1 → v1.2.1) and kept current per release. Enabling GitHub
+    Discussions is still open — tracked under "Not version-gated" in the roadmap.
 19. **v1.3.0: self-destruct timers + quick capture** — DONE:
     - **Self-destructing notes**: optional per-note TTL set from the editor
       toolbar (hourglass icon → 1h/1d/7d/30d/off). Stored as a nullable
@@ -391,11 +405,9 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       earlier interrupted migration), set `user_version = 6` to match the
       actual (already-migrated) table shape. Fresh backup at
       `.bak-preschemafix-20260927T202518` before touching anything.
-    - **Follow-up for the owner**: run `yay -S librenotes-bin` to sync the
-      installed binary with AUR's current `1.4.0-1` — until that's done, the
-      desktop launcher still opens the stale v1.2.0 build (which will now
-      hit the new `OutdatedAppScreen` instead of corrupting the db, but is
-      still worth updating).
+    - **Follow-up (resolved)**: the installed `librenotes-bin` was updated past
+      the stale v1.2.0 build (now `1.5.0-1`; AUR's latest may run ahead of what's
+      installed — `yay -Syu` picks it up).
 
 22. **v1.5.0: live-preview markdown editing, text highlighting, custom/
     gradient note colors** — DONE:
@@ -513,16 +525,12 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       shown too), then connect the app - and the arm64 instruction now points
       to the actual `/dl/server-arm64` link instead of an unmatched
       find-replace string.
-    - **Not yet verified against a real tagged release**: everything here is
-      implemented and build-clean (`npm run build`, bash syntax, YAML
-      structure all checked), but the actual CI matrix job and the new
-      `/dl/server*` redirects can only be confirmed once a real `v*` tag is
-      pushed and `release.yml` runs for real - not done as part of this
-      session per the "never push without being asked" rule. Until the next
-      tagged release publishes assets under the new version-less filenames,
-      `/dl/server` and `/dl/server-arm64` will 404 (the currently-live
-      `v1.5.0` release still has the old versioned filename,
-      `librenotes-server-0.1.0-linux-x86_64.tar.gz`).
+    - **Verified against the real `v1.5.5` release (2026-09-29)**: the
+      2-leg `build-server` matrix ran green and the release carries
+      `librenotes-server-linux-x86_64.tar.gz` and
+      `librenotes-server-linux-arm64.tar.gz`; `/dl/server` and
+      `/dl/server-arm64` on the live site resolve through to those tarballs
+      (HTTP 200).
     - **Follow-up refinements, same session**: step 1's download command is
       now a true one-liner - `curl -L <url> | tar -xzf -` piped directly,
       no intermediate `.tar.gz` file/filename at all (considered a shorter
@@ -617,12 +625,11 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       produced an APK whose `apksigner verify --print-certs` SHA-256
       (`1f6ef3...d6a6`) matches the generated keystore's certificate —
       confirms the debug fallback isn't silently still active.
-    - **Not yet verified against a real tagged CI run** — the `if:` guard,
-      secret decoding, and matrix behavior are correct by inspection and
-      match the already-verified local flow, but the actual GitHub Actions
-      job hasn't executed for real since this only runs on `v*` tag pushes,
-      which weren't part of this session per the "never push without being
-      asked" rule.
+    - **CI signing step ran for real in the `v1.5.5` tag build** (green), but
+      which certificate actually signed the published APK hasn't been
+      checked yet: download `LibreNotes-<ver>-android-arm64.apk` from the
+      release and run `apksigner verify --print-certs` on it — the SHA-256
+      must match the keystore's (`1f6ef3...d6a6`), not a debug cert.
     - **One-time transition cost, expected and unavoidable**: this keystore
       is brand new, so it shares no lineage with any prior GitHub Release
       APK (each of which was already a unique, mutually-incompatible debug
@@ -640,10 +647,31 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       this key, with no recovery path — this is also the keystore the
       "Google Play Store submission" item below depends on reusing.
 
-27. **TODO — versioned roadmap, grouped by dependency and theme:**
+27. **v1.5.5: ghost empty notes, contrast safeguard, server/CI fixes** — DONE:
+    - **Ghost empty notes**: closing an empty note (e.g. the one auto-opened
+      at desktop startup) now goes through the same tombstone path as a real
+      delete, and an empty note is never pushed to the server — previously
+      it could reach the server, then resurrect on the next sync because
+      the local discard never told the server. Empty notes no longer show in
+      the list.
+    - **Note text contrast**: text color is now picked per note to meet a
+      minimum contrast ratio against its actual (light/white/custom/gradient)
+      background.
+    - **Website**: changelog page (nav + footer) and a version badge in the
+      nav; live demo updated to mirror the app's live-preview editing; server
+      setup fixes from item 24.
+    - **Release pipeline**: item 24's server matrix and item 26's keystore
+      signing shipped in this tag; `release.yml` gained a `workflow_dispatch`
+      trigger for manual re-runs and several CI fixes (secrets can't be read
+      in step `if:`; `setup-dart` architecture input is `x64`).
 
-    **v1.6.0 — Packaging & sync infra.** Distribution reach plus the two
-    remaining infra gaps.
+28. **TODO — versioned roadmap, grouped by dependency and theme:**
+    (Regrouped 2026-09-29: the old v1.6.0 was ~14 mixed items, so it was split
+    by theme; website/CI/docs work moved to "Not version-gated" since it doesn't
+    ride an app release.)
+
+    **v1.6.0 — Reach & polish.** Small release: distribution reach plus the
+    known-broken Wayland hotkey and two startup/housekeeping niceties.
     - **Linux .deb/.rpm packages**: add `fpm` to `scripts/package-linux.sh` to
       produce `.deb` (Debian/Ubuntu) and `.rpm` (Fedora/openSUSE) from the same
       Flutter bundle. Install to `/opt/librenotes/` + wrapper at `/usr/bin/librenotes`,
@@ -671,7 +699,22 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       own custom-shortcut settings. Goal is tiered friction: zero setup for
       X11 + GNOME/KDE (the majority), manual one-time setup only for the
       long-tail compositors.
-    - **Server optional WebSocket push** (instead of polling every 10s).
+    - **Auto-purge trash after 30 days**: trashed notes are permanently
+      deleted 30 days after being trashed, reusing the client-side sweep
+      pattern from `sweepExpiredNotes` and the existing `purged` flag/
+      `DELETE /notes/<id>/purge` propagation. Show the remaining days on the
+      Trash page.
+    - **Loading/splash screens**: on mobile, a proper splash screen using the
+      LibreNotes squircle icon (Android 12+ `SplashScreen` API via
+      `flutter_native_splash` or native theme config, with a pre-12 fallback;
+      dark `#1a1a1a` background to match the theme) instead of the blank
+      screen during startup. On desktop (Linux), a matching "LibreNotes"
+      loading screen (logo + name) shown while `main.dart` runs `db.warmUp()`
+      and `LocalKeyManager.resolve()` before the first frame, so launch
+      doesn't look frozen.
+
+    **v1.7.0 — Note content.** Tags, checklists, and the editor/desktop
+    surface around them. Encrypted backup comes last so it covers tags.
     - **Tags**: free-form tags per note (e.g. `#work`), stored inside the
       encrypted payload like `archived`/`expiresAt` so the server never sees
       them (no server change; `Note` in `notally_core` gains a tag list, and
@@ -683,29 +726,9 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       rendering in `MarkdownEditingController`, a toolbar action in
       `markdown_format.dart` to toggle a checklist, and card/sidebar previews
       showing checkbox state. Still plain markdown, no format change.
-    - **Encrypted backup export**: export the whole library (including
-      archived notes) as a single passphrase-encrypted file that can be
-      restored on any install, alongside the existing plaintext `.md` export.
-      Reuses the Argon2id + XChaCha20-Poly1305 primitives in `note_crypto.dart`.
-      Needs a matching import/restore flow.
-    - **HTTPS docs**: document putting the server behind a reverse proxy
-      (Caddy/nginx) or Tailscale HTTPS for TLS — README + website Server Setup
-      section. Docs only; the server stays plain HTTP and LAN/mesh-only.
-    - **CI on pushes and PRs**: new `.github/workflows/ci.yml` running
-      `flutter analyze` + `flutter test` (in `clients/app/`) and `dart test`
-      (in `server/`) on every push and pull request, separate from the
-      tag-only `release.yml`. Pin the Flutter version to match the project
-      (currently 3.32.2) so results are reproducible; optionally mark the
-      check as required for merging into `main`.
-    - **Auto-purge trash after 30 days**: trashed notes are permanently
-      deleted 30 days after being trashed, reusing the client-side sweep
-      pattern from `sweepExpiredNotes` and the existing `purged` flag/
-      `DELETE /notes/<id>/purge` propagation. Show the remaining days on the
-      Trash page.
-
-    **v1.7.0 — Editing & customization.** Remaining editor-toolbar and
-    font-surface work — the highlight/custom-color/live-preview items
-    originally planned here shipped early in v1.5.0 (item 22).
+    - **Desktop keyboard shortcuts**: new note, focus search, toggle preview,
+      archive, etc., plus a help overlay listing them. Ctrl+W stays unbound
+      (see item 12).
     - **Collapse the rest of the note editor toolbar into an overflow menu**:
       item 23 already removed the self-destruct-timer and pin icons from the
       mobile editor toolbar (redundant with the long-press card menu). What's
@@ -714,6 +737,44 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       (archive, delete) behind a three-dot overflow menu instead.
     - **Font selection**: let the user change the font used for note text
       (editor + rendered preview).
+    - **Encrypted backup export**: export the whole library (including
+      archived notes) as a single passphrase-encrypted file that can be
+      restored on any install, alongside the existing plaintext `.md` export.
+      Reuses the Argon2id + XChaCha20-Poly1305 primitives in `note_crypto.dart`.
+      Needs a matching import/restore flow. Include a
+      format-version field in the file from day one, and land this *after*
+      tags so the first format already covers them (later payload additions —
+      reminders, images — bump the format version).
+
+    **v1.8.0 — Sync, security & Windows.** Everything touching the wire
+    protocol, keys, and auth, plus the Windows target. Order matters: the
+    version-drift guard goes first, before any protocol change.
+    - **Guard against unsynced server/client version drift**: make sure a
+      client and server running mismatched versions of each other (e.g. an
+      old client against a newer server schema, or vice versa) can't corrupt
+      state or crash — audit `X-Librenotes-Api-Version` handling and the
+      sync/wire-format assumptions in `notally_core` for gaps. **Do this first in v1.8.0**, before the WebSocket push and
+      before any later `_apiVersion` bump (images, v2.0.0).
+    - **Server optional WebSocket push** (instead of polling every 10s).
+      Wire-protocol change — bump `_apiVersion` in lockstep (see Conventions),
+      and land the version-drift guard above first.
+    - **Change passphrase & key rotation**: re-wrap the DEK under a new
+      passphrase (updates the server `keystore`, no note re-encryption), plus
+      an optional full key rotation that generates a new DEK and re-encrypts
+      every note locally and on the server. Other devices need to pick up the
+      new keystore.
+    - **Server token rotation**: revoke/regenerate the bearer auth token
+      (CLI command or endpoint), with clients prompted to re-enter it. Needs a
+      `server/pubspec.yaml` bump (and `_apiVersion` only if the wire protocol
+      changes).
+    - **Better conflict UI**: side-by-side diff of the local vs. server
+      version with highlighted changes, and an optional manual-merge editor,
+      on top of the current pick-the-winner choice (`conflicts_page.dart`).
+    - **Sync status details**: last-synced time, pending-changes count, and
+      clearer offline/error/version-mismatch states in the sync UI.
+    - **Server backup & restore**: a documented, tested restore flow for the
+      existing `backup.sh` (systemd tarball and Docker volume), and ideally a
+      `restore.sh` alongside it, with a verification step.
     - **Biometric login for the mobile app**: optional fingerprint/face unlock
       on Android (e.g. `local_auth`, which uses the platform BiometricPrompt —
       no Google Play Services dependency, keeps the F-Droid audit clean) as an
@@ -722,6 +783,47 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       stays in the keyring as today (`local_key_manager.dart`) — consider
       whether to also bind the keyring entry to biometric auth for real
       at-rest protection instead of just a UI lock.
+    - **Windows desktop support**: add `windows` as a native Flutter desktop
+      target alongside Linux (`flutter create --platforms=windows .` on the
+      `clients/app/` project, then the usual `windows/` runner scaffold).
+      Moved to v1.8.0 (2026-09-29) so later features get tested
+      on Windows as they land. Decided 2026-09-29: previously excluded, revisited because both original
+      blockers are gone — the owner is setting up a Windows 10 VM on Arch
+      (via `virt-manager`/QEMU) to build/test against directly instead of
+      shipping blind off CI output, and the SmartScreen unsigned-binary
+      warning (no code-signing cert) is an accepted tradeoff, not a blocker.
+      `hotkey_manager`, `window_manager`, and `flutter_secure_storage`
+      (Windows Credential Manager backend) all already support Windows, so
+      quick-capture and the keyring-backed DEK (`local_key_manager.dart`)
+      should port with little change; the Wayland/X11-specific quick-capture
+      caveats (item 19) don't apply. Distribute an unsigned `.exe`/`.msix` via
+      GitHub releases (new `release.yml` matrix leg) rather than committing
+      to a signed release track up front. Still needs: a CI build pipeline,
+      a packaging script, a website download entry, and real manual testing
+      in the VM before calling it done.
+      - **CI build pipeline**: a `windows-latest` matrix leg in `release.yml`
+        (`flutter build windows --release`, package the unsigned `.exe`/
+        `.msix`, upload to the GitHub release like the other artifacts), and
+        a Windows `flutter analyze`/`flutter test`/build check in `ci.yml`
+        (see the CI item under "Not version-gated") so Windows breakage is
+        caught on pushes and PRs, not just at tag time.
+      - **Website**: add Windows to the Download section in `website/`
+        (button + short link such as `/dl/windows` in `website/vercel.json`,
+        pointing at a stable `/releases/latest/download/<exact-filename>`
+        URL, so the packaging script should use a version-less filename as
+        `package-server.sh` does), plus a note about the SmartScreen
+        "Unknown publisher" warning.
+
+    **v1.9.0 — Personal knowledge base & theming.** Reminders is the largest
+    single item on the roadmap; it sits after biometrics (v1.8.0) because of
+    catch (7) below.
+    - **Localization (i18n)**: extract UI strings into Flutter's ARB/`gen_l10n`
+      setup so translations can be contributed; start with English as the base
+      and document the process in `CONTRIBUTING.md`.
+    - **Light theme + system theme option**: add a light palette (keeping the
+      orange `#ff6900` accent and checking note-color contrast, see v1.5.5's
+      safeguard) and a Theme setting: Dark / Light / System (follow OS).
+      Dark stays the default.
     - **Reminders & notifications (fully local, no FCM)**: per-note reminder
       time, separate from the self-destruct timer. Stored as a nullable field
       in the encrypted payload like `expiresAt` (schema migration, no
@@ -746,27 +848,6 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
         background service); (6) reschedule on sync from another device and
         cancel when the note is deleted, archived, or completed; (7) hide the
         note body in the notification while the biometric lock is enabled.
-    - **Light theme + system theme option**: add a light palette (keeping the
-      orange `#ff6900` accent and checking note-color contrast, see v1.5.5's
-      safeguard) and a Theme setting: Dark / Light / System (follow OS).
-      Dark stays the default.
-    - **Change passphrase & key rotation**: re-wrap the DEK under a new
-      passphrase (updates the server `keystore`, no note re-encryption), plus
-      an optional full key rotation that generates a new DEK and re-encrypts
-      every note locally and on the server. Other devices need to pick up the
-      new keystore.
-    - **Server token rotation**: revoke/regenerate the bearer auth token
-      (CLI command or endpoint), with clients prompted to re-enter it. Needs a
-      `server/pubspec.yaml` bump (and `_apiVersion` only if the wire protocol
-      changes).
-    - **Better conflict UI**: side-by-side diff of the local vs. server
-      version with highlighted changes, and an optional manual-merge editor,
-      on top of the current pick-the-winner choice (`conflicts_page.dart`).
-    - **Sync status details**: last-synced time, pending-changes count, and
-      clearer offline/error/version-mismatch states in the sync UI.
-
-    **v1.8.0 — Personal knowledge base.** Both purely local/client-side, turn
-    the app from a note pile into a lightweight PKB.
     - **Backlinks / `[[wiki-links]]` between notes**: let notes reference each
       other by title (`[[Note Title]]`), resolved and rendered client-side
       against already-decrypted content — no server or crypto changes needed.
@@ -775,17 +856,8 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       accepted write — persist the last N encrypted snapshots per note
       locally (Drift) so a note can be time-traveled/undone independently of
       the trash/archive flow. Purely local, no server involvement.
-    - **Server backup & restore**: a documented, tested restore flow for the
-      existing `backup.sh` (systemd tarball and Docker volume), and ideally a
-      `restore.sh` alongside it, with a verification step.
-    - **Localization (i18n)**: extract UI strings into Flutter's ARB/`gen_l10n`
-      setup so translations can be contributed; start with English as the base
-      and document the process in `CONTRIBUTING.md`.
-    - **Desktop keyboard shortcuts**: new note, focus search, toggle preview,
-      archive, etc., plus a help overlay listing them. Ctrl+W stays unbound
-      (see item 12).
 
-    **v1.9.0 — New surfaces.** Bigger, more independent features — new
+    **v2.0.0 — New surfaces.** Bigger, more independent features — new
     platform surfaces rather than core app changes.
     - **Home-screen Android widget**: a widget for quick note creation
       (and/or showing pinned notes) without opening the app. Also a
@@ -798,7 +870,7 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       weakens local-at-rest encryption for that one note) or decrypt on the
       native side; either way, keep it refreshed when the note is edited or
       synced, and handle the note being deleted/archived/expired. Consider
-      hiding content while the biometric app lock (v1.7.0) is enabled.
+      hiding content while the biometric app lock (v1.8.0) is enabled.
     - **Images & attachments**: attach images/files to notes. Blobs must be
       encrypted client-side (same DEK/AEAD) and need a new server blob
       endpoint plus a wire-protocol change (bump `_apiVersion` in lockstep,
@@ -811,33 +883,18 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
     - **Tearable note tabs on desktop**: let a note be dragged out of the main
       app window into its own separate window (tab-tear-off, like a browser
       tab), so multiple notes can be viewed/edited side by side on desktop.
-    - **Windows desktop support**: add `windows` as a native Flutter desktop
-      target alongside Linux (`flutter create --platforms=windows .` on the
-      `clients/app/` project, then the usual `windows/` runner scaffold).
-      Decided 2026-09-29: previously excluded, revisited because both original
-      blockers are gone — the owner is setting up a Windows 10 VM on Arch
-      (via `virt-manager`/QEMU) to build/test against directly instead of
-      shipping blind off CI output, and the SmartScreen unsigned-binary
-      warning (no code-signing cert) is an accepted tradeoff, not a blocker.
-      `hotkey_manager`, `window_manager`, and `flutter_secure_storage`
-      (Windows Credential Manager backend) all already support Windows, so
-      quick-capture and the keyring-backed DEK (`local_key_manager.dart`)
-      should port with little change; the Wayland/X11-specific quick-capture
-      caveats (item 19) don't apply. Distribute an unsigned `.exe`/`.msix` via
-      GitHub releases (new `release.yml` matrix leg) rather than committing
-      to a signed release track up front. Still needs: a CI build leg on
-      `windows-latest`, packaging script, and real manual testing in the VM
-      before calling it done.
 
-    **Not version-gated — do anytime, no release needed.**
-    - **Loading/splash screens**: on mobile, a proper splash screen using the
-      LibreNotes squircle icon (Android 12+ `SplashScreen` API via
-      `flutter_native_splash` or native theme config, with a pre-12 fallback;
-      dark `#1a1a1a` background to match the theme) instead of the blank
-      screen during startup. On desktop (Linux), a matching "LibreNotes"
-      loading screen (logo + name) shown while `main.dart` runs `db.warmUp()`
-      and `LocalKeyManager.resolve()` before the first frame, so launch
-      doesn't look frozen.
+    **Not version-gated — do anytime, no release needed.** Do the CI workflow
+    first, since it guards everything else.
+    - **CI on pushes and PRs**: new `.github/workflows/ci.yml` running
+      `flutter analyze` + `flutter test` (in `clients/app/`) and `dart test`
+      (in `server/`) on every push and pull request, separate from
+      `release.yml` (tag push + manual `workflow_dispatch` only). Pin the Flutter version to match the project
+      (currently 3.32.2) so results are reproducible; optionally mark the
+      check as required for merging into `main`.
+    - **HTTPS docs**: document putting the server behind a reverse proxy
+      (Caddy/nginx) or Tailscale HTTPS for TLS — README + website Server Setup
+      section. Docs only; the server stays plain HTTP and LAN/mesh-only.
     - **Website SEO / discoverability files**: add a dynamic `sitemap.xml`,
       `robots.txt`, and `llms.txt` to `website/` (Next.js metadata routes —
       `app/sitemap.js`, `app/robots.js` — generated at build time so they track
@@ -863,11 +920,6 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       entry in a markdown file.
     - **Enable GitHub Discussions** in repo settings (Settings → Features) —
       the issue template `config.yml` already links to it.
-    - **Guard against unsynced server/client version drift**: make sure a
-      client and server running mismatched versions of each other (e.g. an
-      old client against a newer server schema, or vice versa) can't corrupt
-      state or crash — audit `X-Librenotes-Api-Version` handling and the
-      sync/wire-format assumptions in `notally_core` for gaps.
     - **Google Play Store submission**: planned, as an additional Android
       distribution channel alongside F-Droid, GitHub Releases, and AUR — not
       a replacement for any of them. The app itself doesn't need to change to
@@ -901,3 +953,9 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
   `server/lib/api.dart` and `clients/app/lib/sync/sync_api.dart` too, in
   lockstep, whenever the wire protocol itself changes (not just the server's
   internals) — that's what actually drives `VersionMismatchException`.
+- **Releasing:** write the notes under `## [Unreleased]` in `CHANGELOG.md`, run
+  `scripts/bump-version.sh X.Y.Z` (bumps `clients/app/pubspec.yaml` incl. the
+  `+N` code, dates the changelog section, generates the F-Droid
+  `changelogs/N.txt`), review, commit, then tag `vX.Y.Z`. `release.yml` fails
+  fast if the tag doesn't match the pubspec version. The app's Sync page shows
+  the version at runtime via `package_info_plus`; nothing else hardcodes it.
