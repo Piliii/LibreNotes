@@ -43,6 +43,10 @@ class NoteRow {
   });
 }
 
+/// How long a note stays in the trash before [NotesRepository.sweepTrash]
+/// permanently deletes it.
+const trashRetention = Duration(days: 30);
+
 /// CRUD over the local notes table. Everything the UI does goes through here so
 /// that adding sync later (mark dirty, push/pull) is a change in one place.
 ///
@@ -56,7 +60,7 @@ class NotesRepository {
   final AppDatabase _db;
   NoteCrypto _crypto;
   static const _uuid = Uuid();
-  Timer? _expiryTimer;
+  Timer? _sweepTimer;
 
   NoteCrypto get crypto => _crypto;
 
@@ -272,13 +276,38 @@ class NotesRepository {
     }
   }
 
-  /// Starts a periodic client-side check for expired (self-destructing)
-  /// notes: runs once immediately, then every [period]. Call once at app
+  /// Permanently deletes notes that have sat in the trash longer than
+  /// [retention], through the same path as the user's "Delete permanently"
+  /// ([markForPurge]) so the purge propagates to other devices via the server.
+  /// A note's trash age is its `updatedAt`, which is stamped when it is
+  /// trashed (locally, or from the server's tombstone) and doesn't change
+  /// while it stays there.
+  Future<void> sweepTrash({Duration retention = trashRetention}) async {
+    final cutoff = DateTime.now().subtract(retention).millisecondsSinceEpoch;
+    final stale = await (_db.select(_db.notes)
+          ..where((t) =>
+              t.deleted.equals(true) &
+              t.purged.equals(false) &
+              t.updatedAt.isSmallerOrEqualValue(cutoff)))
+        .get();
+    for (final note in stale) {
+      await markForPurge(note.id);
+    }
+  }
+
+  /// Starts the periodic client-side housekeeping: tombstones expired
+  /// (self-destructing) notes and purges notes that outlived their time in
+  /// the trash. Runs once immediately, then every [period]. Call once at app
   /// startup; the timer lives for the app's lifetime.
-  void startExpirySweep({Duration period = const Duration(minutes: 1)}) {
-    _expiryTimer?.cancel();
-    sweepExpiredNotes();
-    _expiryTimer = Timer.periodic(period, (_) => sweepExpiredNotes());
+  void startSweeps({Duration period = const Duration(minutes: 1)}) {
+    _sweepTimer?.cancel();
+    Future<void> sweep() async {
+      await sweepExpiredNotes();
+      await sweepTrash();
+    }
+
+    sweep();
+    _sweepTimer = Timer.periodic(period, (_) => sweep());
   }
 
   /// Live list of trashed (soft-deleted) notes, most recently deleted first.

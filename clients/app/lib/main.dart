@@ -42,7 +42,7 @@ Future<void> main() async {
 /// recovery screen out for the normal app without needing a process restart.
 Future<void> _launch(AppDatabase db, NoteCrypto crypto) async {
   final repo = NotesRepository(db, crypto);
-  repo.startExpirySweep();
+  repo.startSweeps();
   final sync = SyncService(repo);
   await sync.init();
   final navigatorKey = GlobalKey<NavigatorState>();

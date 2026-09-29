@@ -52,14 +52,29 @@ class TrashPage extends StatelessWidget {
               ),
             );
           }
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            itemCount: notes.length,
-            itemBuilder: (_, i) => _TrashItem(
-              note: notes[i],
-              repo: repo,
-              onChanged: onChanged,
-            ),
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: Text(
+                  'Notes in the trash are permanently deleted after '
+                  '${trashRetention.inDays} days.',
+                  style: const TextStyle(
+                      color: NotallyColors.textFaint, fontSize: 12.5),
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  itemCount: notes.length,
+                  itemBuilder: (_, i) => _TrashItem(
+                    note: notes[i],
+                    repo: repo,
+                    onChanged: onChanged,
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -173,7 +188,8 @@ class _TrashItem extends StatelessWidget {
                       ],
                       const SizedBox(height: 4),
                       Text(
-                        'Deleted ${relativeTime(note.updatedAt)}',
+                        'Deleted ${relativeTime(note.updatedAt)} · '
+                        '${trashRemainingLabel(note.updatedAt, retention: trashRetention)}',
                         style: const TextStyle(
                             color: NotallyColors.textFaint, fontSize: 12),
                       ),
@@ -303,7 +319,8 @@ class _TrashedNoteView extends StatelessWidget {
                 const SizedBox(height: 12),
               ],
               Text(
-                'Deleted ${relativeTime(note.updatedAt)}',
+                'Deleted ${relativeTime(note.updatedAt)} · '
+                '${trashRemainingLabel(note.updatedAt, retention: trashRetention)}',
                 style: const TextStyle(
                     color: NotallyColors.textFaint, fontSize: 13),
               ),

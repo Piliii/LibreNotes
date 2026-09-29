@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -70,5 +71,67 @@ void main() {
     // touch it again (e.g. re-dirty it) since it's not re-selected.
     final note = await repo.getNote(id);
     expect(note!.dirty, isFalse);
+  });
+
+  group('sweepTrash', () {
+    Future<void> backdate(String id, Duration age) {
+      final ms = DateTime.now().subtract(age).millisecondsSinceEpoch;
+      return (db.update(db.notes)..where((t) => t.id.equals(id)))
+          .write(NotesCompanion(updatedAt: Value(ms)));
+    }
+
+    test('marks only notes trashed longer than the retention for purge', () async {
+      final old = await repo.createNote();
+      await repo.deleteNote(old);
+      await backdate(old, trashRetention + const Duration(days: 1));
+
+      final recent = await repo.createNote();
+      await repo.deleteNote(recent);
+      await backdate(recent, trashRetention - const Duration(days: 1));
+
+      final live = await repo.createNote();
+      await backdate(live, trashRetention * 2); // old but not trashed
+
+      await repo.sweepTrash();
+
+      expect((await repo.getNote(old))!.purged, isTrue);
+      expect((await repo.getNote(old))!.dirty, isTrue);
+      expect((await repo.getNote(recent))!.purged, isFalse);
+      expect((await repo.getNote(live))!.purged, isFalse);
+      expect((await repo.getNote(live))!.deleted, isFalse);
+    });
+
+    test('purged notes drop out of the trash list', () async {
+      final id = await repo.createNote();
+      await repo.deleteNote(id);
+      await backdate(id, trashRetention + const Duration(days: 1));
+      expect(await repo.watchTrash().first, hasLength(1));
+
+      await repo.sweepTrash();
+
+      expect(await repo.watchTrash().first, isEmpty);
+    });
+
+    test('is idempotent: an already-purged note is not touched again', () async {
+      final id = await repo.createNote();
+      await repo.deleteNote(id);
+      await backdate(id, trashRetention + const Duration(days: 1));
+      await repo.sweepTrash();
+      await repo.markSynced(id, rev: 1, seq: 1);
+
+      await repo.sweepTrash();
+
+      expect((await repo.getNote(id))!.dirty, isFalse);
+    });
+
+    test('honors a custom retention', () async {
+      final id = await repo.createNote();
+      await repo.deleteNote(id);
+      await backdate(id, const Duration(days: 2));
+
+      await repo.sweepTrash(retention: const Duration(days: 1));
+
+      expect((await repo.getNote(id))!.purged, isTrue);
+    });
   });
 }

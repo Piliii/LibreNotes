@@ -19,6 +19,22 @@ String relativeTime(int ms) {
   return then.year == now.year ? label : '$label ${then.year}';
 }
 
+/// How long a trashed note has left before auto-purge, e.g. "12 days left".
+/// [deletedAtMs] is when it was trashed; reads "Deleting soon" once the
+/// retention window has (nearly) run out.
+String trashRemainingLabel(
+  int deletedAtMs, {
+  required Duration retention,
+  DateTime? now,
+}) {
+  final deadline =
+      DateTime.fromMillisecondsSinceEpoch(deletedAtMs).add(retention);
+  final left = deadline.difference(now ?? DateTime.now());
+  if (left <= Duration.zero) return 'Deleting soon';
+  final days = (left.inMinutes / Duration.minutesPerDay).ceil();
+  return days == 1 ? '1 day left' : '$days days left';
+}
+
 /// First non-empty content, flattened to a single line for list/card previews.
 /// Strips the most common markdown markers so previews read cleanly.
 String previewText(String body) {

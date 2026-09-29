@@ -54,4 +54,29 @@ void main() {
       expect(previewText('   \n  '), '');
     });
   });
+
+  group('trashRemainingLabel', () {
+    const retention = Duration(days: 30);
+    final now = DateTime(2026, 9, 29, 12);
+    int deleted(Duration ago) => now.subtract(ago).millisecondsSinceEpoch;
+    String label(Duration ago) =>
+        trashRemainingLabel(deleted(ago), retention: retention, now: now);
+
+    test('just trashed has the full window left', () {
+      expect(label(Duration.zero), '30 days left');
+    });
+
+    test('partial days round up', () {
+      expect(label(const Duration(days: 10, hours: 2)), '20 days left');
+    });
+
+    test('under a day left reads as 1 day', () {
+      expect(label(const Duration(days: 29, hours: 6)), '1 day left');
+    });
+
+    test('at or past the deadline reads "Deleting soon"', () {
+      expect(label(const Duration(days: 30)), 'Deleting soon');
+      expect(label(const Duration(days: 45)), 'Deleting soon');
+    });
+  });
 }
