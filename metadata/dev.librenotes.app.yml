@@ -11,19 +11,116 @@ RepoType: git
 Repo: https://github.com/Piliii/LibreNotes
 
 Builds:
-  - versionName: 1.0.1
-    versionCode: 1
-    commit: cb4bb9666c9205c560e8662a8b26885c04aed8b6
+  - versionName: 1.2.0
+    versionCode: 3
+    commit: eb4751bd642cd92162c98d2dcfee0ddbed09e6aa
     subdir: clients/app
     output: build/app/outputs/flutter-apk/app-release.apk
     srclibs:
       - flutter@stable
+    rm:
+      - clients/app/linux
+      - clients/app/web
     prebuild:
+      - flutterVersion=$(sed -n -E "s/.*flutter-version:\ '(.*)'/\1/p" ../../.github/workflows/release.yml)
+      - '[[ $flutterVersion ]]'
+      - git -C $$flutter$$ checkout -f $flutterVersion
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter config --no-analytics
-      - $$flutter$$/bin/flutter pub get
-    scanignore:
-      - packages/notally_core
+      - $$flutter$$/bin/flutter pub get --enforce-lockfile
+    scandelete:
+      - clients/app/.pub-cache
+    build:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter build apk --release --target-platform=android-arm64
+
+  - versionName: 1.2.1
+    versionCode: 4
+    commit: 10a274206ca4ce6200eb27f921c471509c21cf9b
+    subdir: clients/app
+    output: build/app/outputs/flutter-apk/app-release.apk
+    srclibs:
+      - flutter@stable
+    rm:
+      - clients/app/linux
+      - clients/app/web
+    prebuild:
+      - flutterVersion=$(sed -n -E "s/.*flutter-version:\ '(.*)'/\1/p" ../../.github/workflows/release.yml)
+      - '[[ $flutterVersion ]]'
+      - git -C $$flutter$$ checkout -f $flutterVersion
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get --enforce-lockfile
+    scandelete:
+      - clients/app/.pub-cache
+    build:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter build apk --release --target-platform=android-arm64
+
+  - versionName: 1.3.0
+    versionCode: 5
+    commit: e73cfb8d642392de5dd030372791d0e26cbf6b46
+    subdir: clients/app
+    output: build/app/outputs/flutter-apk/app-release.apk
+    srclibs:
+      - flutter@stable
+    rm:
+      - clients/app/linux
+      - clients/app/web
+    prebuild:
+      - flutterVersion=$(sed -n -E "s/.*flutter-version:\ '(.*)'/\1/p" ../../.github/workflows/release.yml)
+      - '[[ $flutterVersion ]]'
+      - git -C $$flutter$$ checkout -f $flutterVersion
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get --enforce-lockfile
+    scandelete:
+      - clients/app/.pub-cache
+    build:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter build apk --release --target-platform=android-arm64
+
+  - versionName: 1.4.0
+    versionCode: 6
+    commit: 1b20331107f61934a326357c62d8d317e5d50559
+    subdir: clients/app
+    output: build/app/outputs/flutter-apk/app-release.apk
+    srclibs:
+      - flutter@stable
+    rm:
+      - clients/app/linux
+      - clients/app/web
+    prebuild:
+      - flutterVersion=$(sed -n -E "s/.*flutter-version:\ '(.*)'/\1/p" ../../.github/workflows/release.yml)
+      - '[[ $flutterVersion ]]'
+      - git -C $$flutter$$ checkout -f $flutterVersion
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get --enforce-lockfile
+    scandelete:
+      - clients/app/.pub-cache
+    build:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter build apk --release --target-platform=android-arm64
+
+  - versionName: 1.5.5
+    versionCode: 8
+    commit: 58b324c1d2894d75cec959b64575da6b1da7b297
+    subdir: clients/app
+    output: build/app/outputs/flutter-apk/app-release.apk
+    srclibs:
+      - flutter@stable
+    rm:
+      - clients/app/linux
+      - clients/app/web
+    prebuild:
+      - flutterVersion=$(sed -n -E "s/.*flutter-version:\ '(.*)'/\1/p" ../../.github/workflows/release.yml)
+      - '[[ $flutterVersion ]]'
+      - git -C $$flutter$$ checkout -f $flutterVersion
+      - sed -i -e '/signingConfig = if/,+4d' android/app/build.gradle.kts
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get --enforce-lockfile
     scandelete:
       - clients/app/.pub-cache
     build:
@@ -33,5 +130,5 @@ Builds:
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
 UpdateCheckData: clients/app/pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
-CurrentVersion: 1.2.0
-CurrentVersionCode: 3
+CurrentVersion: 1.5.5
+CurrentVersionCode: 8
