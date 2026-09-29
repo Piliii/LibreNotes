@@ -25,14 +25,20 @@ jobs:
       # Real release signing key, decoded from a secret rather than checked
       # into git. Skipped (falls back to debug signing) if the secret isn't
       # configured, e.g. on a fork. See CLAUDE.md "Licensing & distribution."
+      # The `secrets` context can't be used in a step `if:` (GitHub Actions
+      # rejects the whole workflow file at parse time if you try), so the
+      # emptiness check happens in the shell instead.
       - name: Set up release signing
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         working-directory: clients/app/android
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "No release keystore secret configured; falling back to debug signing."
+            exit 0
+          fi
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
           cat > key.properties <<EOF
           storePassword=$ANDROID_KEYSTORE_PASSWORD
