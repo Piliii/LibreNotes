@@ -97,10 +97,17 @@ jobs:
     strategy:
       matrix:
         include:
+          # `arch` matches the tarball-naming convention used by
+          # package-server.sh (see CLAUDE.md item 24). `dart_arch` is the
+          # separate, unrelated value dart-lang/setup-dart's `architecture`
+          # input actually accepts ('x64'/'ia32'/'arm'/'arm64' — NOT
+          # 'x86_64', which 404s against the Dart SDK archive).
           - runner: ubuntu-latest
             arch: x86_64
+            dart_arch: x64
           - runner: ubuntu-24.04-arm
             arch: arm64
+            dart_arch: arm64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -108,7 +115,7 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-          architecture: ${{ matrix.arch }}
+          architecture: ${{ matrix.dart_arch }}
 
       - name: Install libsqlite3
         run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
