@@ -1,5 +1,5 @@
 import { Download, Package, ArrowRight, Info } from 'lucide-react';
-import { siLinux, siArchlinux, siAndroid, siFdroid } from 'simple-icons';
+import { siLinux, siArchlinux, siDebian, siFedora, siAndroid, siFdroid } from 'simple-icons';
 import BrandIcon from './BrandIcon';
 
 const GH_RELEASE = 'https://github.com/Piliii/LibreNotes/releases/latest';
@@ -18,6 +18,22 @@ const LINUX_OPTIONS = [
     description: 'Portable archive for manual install.',
     href: GH_RELEASE,
     icon: <Package size={20} strokeWidth={1.6} />,
+  },
+  // TODO: drop the badges (and point at the real assets) once a GitHub
+  // release actually ships the .deb/.rpm files (planned for v1.6.0).
+  {
+    label: 'Debian / Ubuntu (.deb)',
+    description: 'Debian, Ubuntu, Linux Mint, and derivatives.',
+    href: GH_RELEASE,
+    icon: <BrandIcon icon={siDebian} size={20} />,
+    badge: 'Coming soon',
+  },
+  {
+    label: 'Fedora / openSUSE (.rpm)',
+    description: 'Fedora, openSUSE, and other RPM-based distros.',
+    href: GH_RELEASE,
+    icon: <BrandIcon icon={siFedora} size={20} />,
+    badge: 'Coming soon',
   },
   {
     label: 'AUR (librenotes-bin)',
