@@ -13,6 +13,7 @@ const NAV = [
   { label: 'Download', href: '/#download' },
   { label: 'Server setup', href: '/#server' },
   { label: 'Changelog', href: '/changelog' },
+  { label: 'Privacy', href: '/privacy' },
 ];
 
 export default function Footer() {
