@@ -625,11 +625,10 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       produced an APK whose `apksigner verify --print-certs` SHA-256
       (`1f6ef3...d6a6`) matches the generated keystore's certificate —
       confirms the debug fallback isn't silently still active.
-    - **CI signing step ran for real in the `v1.5.5` tag build** (green), but
-      which certificate actually signed the published APK hasn't been
-      checked yet: download `LibreNotes-<ver>-android-arm64.apk` from the
-      release and run `apksigner verify --print-certs` on it — the SHA-256
-      must match the keystore's (`1f6ef3...d6a6`), not a debug cert.
+    - **Verified against the real `v1.5.5` release APK (2026-09-29)**:
+      `apksigner verify --print-certs` on the GitHub Release APK reports the
+      keystore's certificate (CN=LibreNotes, SHA-256 `1f6ef3...d6a6`), not a
+      debug cert — the CI signing step works end to end.
     - **One-time transition cost, expected and unavoidable**: this keystore
       is brand new, so it shares no lineage with any prior GitHub Release
       APK (each of which was already a unique, mutually-incompatible debug
@@ -639,10 +638,8 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       the first release built with this keystore (same uninstall + reinstall
       workaround as the pre-existing F-Droid case) — every release from this
       one forward will then update in place normally.
-    - **Backed up**: `~/.android-keys/librenotes-release.jks` is backed up to
-      the VPS (`/root/backups/librenotes-keystore/`, `700`/`600` perms,
-      checksum-verified — see `CLAUDE-VPS.md`); the store/key passwords +
-      alias are in Vaultwarden. Losing all copies would reproduce this exact
+    - **Backed up** (off-machine copy + credentials stored privately, not
+      documented here). Losing all copies would reproduce this exact
       problem permanently for anyone who's installed a version signed with
       this key, with no recovery path — this is also the keystore the
       "Google Play Store submission" item below depends on reusing.
