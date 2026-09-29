@@ -11,8 +11,10 @@ rename those, they're just library identifiers.
 ## Product shape
 
 - **Clients (all Flutter/Dart, one codebase):** website, native Linux desktop,
-  native Android. **No Windows, no Electron** (the owner refuses Electron on
-  privacy grounds — don't propose it).
+  native Android. **No Electron** (the owner refuses Electron on privacy
+  grounds — don't propose it). Native Windows desktop support is planned (see
+  roadmap v1.9.0) — Flutter's Windows target is a native Win32 build, not
+  Electron, so it doesn't conflict with that rule.
 - **Notes:** markdown text. Desktop = notes list on the left, editor on the
   right. Mobile = staggered 2-column masonry grid of cards (body preview only
   when no title; title + body when title exists, variable height).
@@ -471,7 +473,117 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       were deleted as dead code once nothing referenced them.
     - `flutter analyze` clean across the whole app after each change.
 
-24. **TODO — versioned roadmap, grouped by dependency and theme:**
+24. **Server download links were broken + no arm64 server build existed** — DONE:
+    - **Root cause**: the website's Server Setup "Binary install" card told users to
+      `curl` `https://librenotes.ayopili.com/dl/server`, but that short link
+      redirected to `github.com/.../releases/latest` — an HTML release-notes
+      page, not a binary. Confirmed live: `curl -L` on it downloads the page,
+      and the shown `chmod +x librenotes-server` then runs against that HTML
+      file. The instructions were non-functional for everyone, on any
+      architecture, independent of the arm64 gap below. Separately, the copy
+      also said "Replace linux-x86_64 with linux-arm64 if on a Raspberry Pi"
+      even though the shown command never contained that string anywhere, and
+      `build-server` in `release.yml` only ever ran on `ubuntu-latest`
+      (x86_64) with no cross-compile step — no arm64 asset has ever been
+      published, so the instruction was false on a *real* Raspberry Pi (which
+      is arm64), undermining the "5 minutes on a Raspberry Pi" pitch repeated
+      in both the Server Setup and Download sections. On top of that, the
+      real release asset was never a bare binary to begin with -
+      `scripts/package-server.sh` produces a `.tar.gz` with the binary,
+      `install.sh` (sets up a systemd service under a dedicated
+      `librenotes` user), `backup.sh`, and a bundled `libsqlite3.so` - but the
+      website's 3-step flow described curl-ing a raw executable and running
+      it in the foreground, which was never what shipped.
+    - **Fix**: `build-server` in `release.yml` is now a 2-leg matrix
+      (`ubuntu-latest`/x86_64, `ubuntu-24.04-arm`/arm64 - GitHub's free hosted
+      arm64 runners, no QEMU needed), each uploading a differently-named
+      artifact (`server-tarball-x86_64` / `server-tarball-arm64`) merged into
+      the same release via the existing `merge-multiple: true` download step.
+      `scripts/package-server.sh` normalizes `uname -m` (`aarch64` → `arm64`)
+      and **drops the version number from the tarball filename** (now
+      `librenotes-server-linux-<arch>.tar.gz`, version still embedded inside
+      as a `VERSION` file) specifically so `website/vercel.json`'s `/dl/server`
+      and new `/dl/server-arm64` redirects can point at GitHub's *stable*
+      `/releases/latest/download/<exact-filename>` URLs without going stale
+      every time `server/pubspec.yaml`'s version bumps (see item above on
+      that version being independent of the app's). `ServerSetupSection.js`'s
+      Binary steps were rewritten to match the real flow: download + `tar
+      -xzf` the tarball, `cd` into it, `sudo bash install.sh` (which itself
+      prints the token, with a `sudo cat /var/lib/librenotes/token` fallback
+      shown too), then connect the app - and the arm64 instruction now points
+      to the actual `/dl/server-arm64` link instead of an unmatched
+      find-replace string.
+    - **Not yet verified against a real tagged release**: everything here is
+      implemented and build-clean (`npm run build`, bash syntax, YAML
+      structure all checked), but the actual CI matrix job and the new
+      `/dl/server*` redirects can only be confirmed once a real `v*` tag is
+      pushed and `release.yml` runs for real - not done as part of this
+      session per the "never push without being asked" rule. Until the next
+      tagged release publishes assets under the new version-less filenames,
+      `/dl/server` and `/dl/server-arm64` will 404 (the currently-live
+      `v1.5.0` release still has the old versioned filename,
+      `librenotes-server-0.1.0-linux-x86_64.tar.gz`).
+    - **Follow-up refinements, same session**: step 1's download command is
+      now a true one-liner - `curl -L <url> | tar -xzf -` piped directly,
+      no intermediate `.tar.gz` file/filename at all (considered a shorter
+      output filename like `ln-srvr.tar.gz` instead, but that doesn't fix
+      what actually causes the wrap - the URL length, not the filename -
+      and a cryptic name reads worse for a command meant to be pasted as
+      root). Also: `install.sh` had **no non-systemd guard** - it would
+      partially install (create the `librenotes` user, copy files, write the
+      data dir) before dying uninformatively on `systemctl: command not
+      found` on Alpine/Void/Devuan/etc. Added an early check for
+      `/run/systemd/system` (the reliable "is systemd actually PID 1" test,
+      not just "is `systemctl` on PATH") right after the root check, so it
+      now fails immediately with a pointer to the Docker image instead -
+      Docker already works on any distro regardless of init system, so that
+      stays the actual answer for non-systemd hosts rather than this project
+      taking on separate OpenRC/runit/sysvinit unit files to maintain.
+
+25. **Linux desktop coredump on quit (NVIDIA)** — PARTIALLY FIXED:
+    - **Symptom**: closing the desktop app on an NVIDIA (proprietary driver)
+      system reliably produces a `systemd-coredump` entry, confirmed against
+      a real device (`archpp`, driver `615.71.09`) on 2026-09-29. Two distinct
+      crash signatures were observed, non-deterministically depending on
+      shutdown timing:
+      1. `SIGSEGV` inside `libnvidia-eglcore.so`, reached via an
+         atexit-registered handler in `libEGL_nvidia.so` that runs *after*
+         `main()` returns from `g_application_run()` — i.e. after the GTK
+         window and Flutter engine have already shut down cleanly.
+      2. `SIGABRT` from a libepoxy assertion
+         (`epoxy_get_proc_address: ... "Couldn't find current GLX or EGL
+         context"`), preceded by a `Gdk-WARNING: eglMakeCurrent failed`,
+         happening *during* window teardown rather than after.
+    - **Fix (variant 1 only)**: `clients/app/linux/runner/main.cc` now calls
+      `_exit()` right after `g_application_run()` returns, instead of letting
+      `main()` return normally. This skips libc's atexit handler chain
+      entirely (harmless — the window and engine are already torn down by
+      that point), matching the same workaround independently arrived at by
+      another Flutter-Linux project hitting an identical trace
+      (`Nihmar/Niman` issue #108 / PR #113).
+    - **Variant 2 is a genuine, currently-unfixed upstream Flutter engine
+      bug — not fixable from this repo.** It's
+      [flutter/flutter#192873](https://github.com/flutter/flutter/issues/192873)
+      ("[Linux] Potential crash in redraw_cb"), filed 2026-09-16 and still
+      open as of Flutter 3.47.1 (latest stable, Aug 2026 — this project is
+      still on 3.32.2). Root cause: `fl_view_present_layers()` schedules a
+      GTK-thread redraw via `g_idle_add()` on the raster thread, but nothing
+      stops `gtk_widget_destroy()` from tearing down the window concurrently
+      on the main thread; if the idle callback loses the race it calls
+      `eglMakeCurrent` against an already-destroyed EGL surface, which fails
+      and sends libepoxy into an assertion-triggered `abort()`. This is
+      compiled into the Flutter SDK's own `libflutter_linux_gtk.so`, entirely
+      outside this repo's source, and the abort happens *before* `main()`
+      would return — so the variant-1 fix above cannot reach it. No app-level
+      workaround is known; resolving it requires an upstream engine fix and a
+      Flutter SDK bump once one lands.
+    - **Net effect**: quitting the desktop app on NVIDIA may still
+      occasionally coredump (variant 2) until upstream Flutter fixes
+      #192873, even though variant 1 is resolved. Neither variant loses data
+      or affects the running app — both happen strictly during/after
+      shutdown that has already completed from the user's perspective.
+
+26. **TODO — versioned roadmap, grouped by dependency and theme:**
 
     **v1.6.0 — Packaging & sync infra.** Distribution reach plus the two
     remaining infra gaps.
@@ -538,6 +650,23 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
     - **Tearable note tabs on desktop**: let a note be dragged out of the main
       app window into its own separate window (tab-tear-off, like a browser
       tab), so multiple notes can be viewed/edited side by side on desktop.
+    - **Windows desktop support**: add `windows` as a native Flutter desktop
+      target alongside Linux (`flutter create --platforms=windows .` on the
+      `clients/app/` project, then the usual `windows/` runner scaffold).
+      Decided 2026-09-29: previously excluded, revisited because both original
+      blockers are gone — the owner is setting up a Windows 10 VM on Arch
+      (via `virt-manager`/QEMU) to build/test against directly instead of
+      shipping blind off CI output, and the SmartScreen unsigned-binary
+      warning (no code-signing cert) is an accepted tradeoff, not a blocker.
+      `hotkey_manager`, `window_manager`, and `flutter_secure_storage`
+      (Windows Credential Manager backend) all already support Windows, so
+      quick-capture and the keyring-backed DEK (`local_key_manager.dart`)
+      should port with little change; the Wayland/X11-specific quick-capture
+      caveats (item 19) don't apply. Distribute an unsigned `.exe`/`.msix` via
+      GitHub releases (new `release.yml` matrix leg) rather than committing
+      to a signed release track up front. Still needs: a CI build leg on
+      `windows-latest`, packaging script, and real manual testing in the VM
+      before calling it done.
 
     **Not version-gated — do anytime, no release needed.**
     - **awesome-selfhosted submission**: submit a PR to
@@ -564,6 +693,20 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
       build of the same version. Generate one keystore, store it
       base64-encoded as a GitHub Actions secret, and have `build-android` in
       `release.yml` use it instead of the debug config.
+    - **Google Play Store submission**: planned, as an additional Android
+      distribution channel alongside F-Droid, GitHub Releases, and AUR — not
+      a replacement for any of them. The app itself doesn't need to change to
+      qualify (already Play-Services/Firebase/tracker-free per the F-Droid
+      audit); this is purely a distribution-channel addition. Depends on the
+      "Persist a real Android release keystore in CI" item above — Play
+      requires a stable app signing key across updates (either a
+      self-managed upload key + Play App Signing, or bring-your-own-key), so
+      the same keystore work needed to fix GitHub Release APK upgrades should
+      be done first rather than minting a separate Play-only key. Also needs:
+      a Google Play Console developer account ($25 one-time fee), a privacy
+      policy page (the website already exists — could host it there), and
+      Play's data-safety form filled out honestly (should be easy given
+      there's no analytics/tracking to disclose).
 
 ## Conventions
 
@@ -573,3 +716,13 @@ flutter build apk --release --target-platform android-arm64   # release APK (arm
 - Never commit `server/data/` (holds the db and the auth token).
 - Both `clients/app/pubspec.lock` and `server/pubspec.lock` are tracked — keep
   them committed for reproducible builds (F-Droid requirement).
+- `server/pubspec.yaml`'s `version` is independent of the app's version — it
+  tracks the **server binary/protocol**, not app releases, and must be bumped
+  by hand whenever `server/` changes (a new endpoint, a `db.dart` schema/
+  conflict-logic change, a dependency bump that changes behavior, etc.),
+  even if that release doesn't touch the app at all. It's already wired
+  through: `scripts/package-server.sh` names the tarball off this version,
+  independently of `clients/app/pubspec.yaml`. Bump `_apiVersion` in
+  `server/lib/api.dart` and `clients/app/lib/sync/sync_api.dart` too, in
+  lockstep, whenever the wire protocol itself changes (not just the server's
+  internals) — that's what actually drives `VersionMismatchException`.
