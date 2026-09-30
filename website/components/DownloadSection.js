@@ -1,5 +1,5 @@
 import { Download, Package, ArrowRight, Info } from 'lucide-react';
-import { siLinux, siArchlinux, siDebian, siFedora, siAndroid, siFdroid } from 'simple-icons';
+import { siLinux, siArchlinux, siDebian, siFedora, siAndroid, siFdroid, siGoogleplay } from 'simple-icons';
 import BrandIcon from './BrandIcon';
 
 const GH_RELEASE = 'https://github.com/Piliii/LibreNotes/releases/latest';
@@ -127,6 +127,14 @@ export default function DownloadSection() {
                 label="F-Droid"
                 description="FOSS-only Android app store. Available in the official repo."
                 icon={<BrandIcon icon={siFdroid} size={20} />}
+              />
+              {/* TODO: point href at the Play listing and drop the badge once it's live. */}
+              <DownloadCard
+                href={GH_RELEASE}
+                label="Google Play"
+                description="Official Play Store listing."
+                icon={<BrandIcon icon={siGoogleplay} size={20} />}
+                badge="Coming soon"
               />
               <DownloadCard
                 href={GH_RELEASE}
