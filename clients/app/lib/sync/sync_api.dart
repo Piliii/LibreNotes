@@ -25,8 +25,13 @@ class VersionMismatchException implements Exception {
 /// Typed HTTP client for the Notally sync server. Mirrors the server routes;
 /// 409s are surfaced as a [PushResult] with [PushStatus.conflict], not thrown.
 class SyncApi {
-  SyncApi({required String baseUrl, required this.token, http.Client? client})
-      : baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), ''),
+  SyncApi({
+    required String baseUrl,
+    required this.token,
+    http.Client? client,
+    Duration timeout = defaultTimeout,
+  })  : _timeout = timeout,
+        baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), ''),
         _client = client ?? http.Client();
 
   final String baseUrl;
@@ -34,6 +39,12 @@ class SyncApi {
   final http.Client _client;
 
   static const int _apiVersion = 1;
+
+  /// Upper bound per request. Without it a connect to an unreachable host
+  /// (internet up, server down/off-LAN) can hang for minutes; a timeout
+  /// surfaces as an ordinary offline error instead.
+  static const Duration defaultTimeout = Duration(seconds: 15);
+  final Duration _timeout;
 
   Map<String, String> get _headers => {
         'authorization': 'Bearer $token',
@@ -44,12 +55,12 @@ class SyncApi {
   /// an API version this client doesn't support. No-ops against old servers
   /// that don't send the version header yet.
   Future<void> checkApiVersion() async {
-    final r = await _client.get(Uri.parse('$baseUrl/health'));
+    final r = await _client.get(Uri.parse('$baseUrl/health')).timeout(_timeout);
     _checkVersion(r);
   }
 
   Future<bool> health() async {
-    final r = await _client.get(Uri.parse('$baseUrl/health'));
+    final r = await _client.get(Uri.parse('$baseUrl/health')).timeout(_timeout);
     return r.statusCode == 200;
   }
 
@@ -57,7 +68,7 @@ class SyncApi {
     final r = await _client.get(
       Uri.parse('$baseUrl/changes?since=$since'),
       headers: _headers,
-    );
+    ).timeout(_timeout);
     _checkVersion(r);
     _ensure2xx(r);
     return ChangesResponse.fromJson(_decode(r));
@@ -68,7 +79,7 @@ class SyncApi {
       Uri.parse('$baseUrl/notes/$id'),
       headers: _headers,
       body: jsonEncode(req.toJson()),
-    );
+    ).timeout(_timeout);
     if (r.statusCode != 200 && r.statusCode != 409) _ensure2xx(r);
     return PushResult.fromJson(_decode(r));
   }
@@ -77,7 +88,7 @@ class SyncApi {
     final r = await _client.delete(
       Uri.parse('$baseUrl/notes/$id/purge'),
       headers: _headers,
-    );
+    ).timeout(_timeout);
     _ensure2xx(r);
   }
 
@@ -85,13 +96,13 @@ class SyncApi {
     final r = await _client.delete(
       Uri.parse('$baseUrl/notes/$id?baseRev=$baseRev'),
       headers: _headers,
-    );
+    ).timeout(_timeout);
     if (r.statusCode != 200 && r.statusCode != 409) _ensure2xx(r);
     return PushResult.fromJson(_decode(r));
   }
 
   Future<Keystore?> getKeystore() async {
-    final r = await _client.get(Uri.parse('$baseUrl/keystore'), headers: _headers);
+    final r = await _client.get(Uri.parse('$baseUrl/keystore'), headers: _headers).timeout(_timeout);
     if (r.statusCode == 404) return null;
     _ensure2xx(r);
     return Keystore.fromJson(_decode(r));
@@ -102,7 +113,7 @@ class SyncApi {
       Uri.parse('$baseUrl/keystore'),
       headers: _headers,
       body: jsonEncode(ks.toJson()),
-    );
+    ).timeout(_timeout);
     _ensure2xx(r);
   }
 

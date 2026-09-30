@@ -88,7 +88,12 @@ class SyncService {
   /// Called at startup: figure out whether sync is configured, and if so,
   /// resume it using the already-resolved local DEK (see `main.dart`) without
   /// prompting the user for their passphrase.
-  Future<void> init() async {
+  ///
+  /// [waitForFirstSync] false lets the caller (app startup) proceed without
+  /// waiting on the network: the first sync runs in the background and its
+  /// outcome lands in [status]. An unreachable server must never hold up the
+  /// UI of an offline-first app.
+  Future<void> init({bool waitForFirstSync = true}) async {
     final baseUrl = await _repo.kvGet(_kBaseUrl);
     final token = await _repo.kvGet(_kToken);
     final configured = baseUrl != null && await _repo.kvGet(_kWrapped) != null;
@@ -101,8 +106,13 @@ class SyncService {
       return;
     }
     _api = SyncApi(baseUrl: baseUrl, token: token);
-    await syncNow();
-    _startAuto();
+    if (waitForFirstSync) {
+      await syncNow();
+      _startAuto();
+    } else {
+      _startAuto();
+      unawaited(syncNow());
+    }
   }
 
   Future<String?> get savedBaseUrl => _repo.kvGet(_kBaseUrl);
