@@ -22,6 +22,16 @@ export default function WhatsNewModal() {
     } catch {
       return;
     }
+    if (lastSeen === null) {
+      // First-time visitor: nothing is "new" to them. Record the current
+      // version so only future releases trigger the popup.
+      try {
+        window.localStorage.setItem(STORAGE_KEY, latest.version);
+      } catch {
+        // best-effort only
+      }
+      return;
+    }
     if (lastSeen !== latest.version) setPhase('opening');
   }, [loading, error, latest]);
 
