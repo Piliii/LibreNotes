@@ -49,7 +49,8 @@ Future<void> _launch(AppDatabase db, NoteCrypto crypto) async {
   final repo = NotesRepository(db, crypto);
   repo.startSweeps();
   final sync = SyncService(repo);
-  await sync.init();
+  // Don't await the network: an unreachable server would hang startup.
+  await sync.init(waitForFirstSync: false);
   final navigatorKey = GlobalKey<NavigatorState>();
   final quickCapture = QuickCaptureController(repo, navigatorKey);
   await quickCapture.init();
