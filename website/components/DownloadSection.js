@@ -192,6 +192,7 @@ export default function DownloadSection() {
                 href={GH_RELEASE}
                 label="Google Play"
                 description="Official Play Store listing."
+                comingSoon
                 icon={<BrandIcon icon={siGoogleplay} size={20} />}
               />
               <DownloadCard
