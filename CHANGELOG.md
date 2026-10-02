@@ -19,6 +19,15 @@ plain semver-ish tags (`vX.Y.Z`).
   local database and keys are being opened.
 - Linux: `.deb` (Debian/Ubuntu) and `.rpm` (Fedora/openSUSE) packages,
   attached to each GitHub release alongside the AppImage and tarball.
+- Server (Docker): a built-in health check (`librenotes-server --healthcheck`),
+  so `docker ps` and hosting platforms can see whether the server is healthy.
+
+### Fixed
+- Server (Docker): the container no longer fails to start when its data
+  volume is owned by root (as a fresh volume from a hosting platform usually
+  is). It now fixes ownership of the data directory on startup, then runs as
+  an unprivileged user with a fixed UID (10001). Existing volumes are
+  migrated automatically on the first start.
 
 ## [1.5.6] — 2026-10-01
 
