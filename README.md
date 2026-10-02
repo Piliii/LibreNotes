@@ -16,6 +16,7 @@
 
 <p align="center">
   <a href="https://f-droid.org/packages/dev.librenotes.app/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="60"/></a>
+  <a href="https://play.google.com/store/apps/details?id=dev.librenotes.app"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="90"/></a>
 </p>
 
 <p align="center">
@@ -25,7 +26,7 @@
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
-**Platforms:** Android (F-Droid), Linux desktop, web
+**Platforms:** Android (F-Droid, Google Play), Linux desktop, Windows desktop, web
 
 ## Why LibreNotes?
 
