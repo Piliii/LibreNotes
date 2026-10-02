@@ -3,7 +3,7 @@ export default function BrandIcon({ icon, size = 20, className = '', style = {} 
   return (
     <svg
       role="img"
-      viewBox="0 0 24 24"
+      viewBox={icon.viewBox || '0 0 24 24'}
       width={size}
       height={size}
       fill="currentColor"

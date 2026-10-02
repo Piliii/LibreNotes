@@ -117,8 +117,9 @@ export default function PrivacyPage() {
 
           <Section id="sync" title="Sync (optional) and your server">
             <p>
-              Sync is off until you connect the app to a LibreNotes server that <Strong>you</Strong> host, for
-              example on your home network. The developer has no access to it.
+              Sync is off until you connect the app to a LibreNotes server of your choosing. That might be one
+              you host yourself, for example on your home network, or one run by someone else you trust, such as a
+              family member or friend. The developer does not run or have access to any server on your behalf.
             </p>
             <p>Notes are encrypted on your device before they are sent. The server only ever stores:</p>
             <List>

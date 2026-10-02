@@ -19,21 +19,19 @@ const LINUX_OPTIONS = [
     href: GH_RELEASE,
     icon: <Package size={20} strokeWidth={1.6} />,
   },
-  // TODO: drop the badges (and point at the real assets) once a GitHub
+  // TODO: point these at the real assets once a GitHub
   // release actually ships the .deb/.rpm files (planned for v1.6.0).
   {
     label: 'Debian / Ubuntu (.deb)',
-    description: 'Debian, Ubuntu, Linux Mint, and derivatives.',
+    description: 'Debian, Ubuntu, Mint.',
     href: GH_RELEASE,
     icon: <BrandIcon icon={siDebian} size={20} />,
-    badge: 'Coming soon',
   },
   {
     label: 'Fedora / openSUSE (.rpm)',
-    description: 'Fedora, openSUSE, and other RPM-based distros.',
+    description: 'Fedora, openSUSE, RPM distros.',
     href: GH_RELEASE,
     icon: <BrandIcon icon={siFedora} size={20} />,
-    badge: 'Coming soon',
   },
   {
     label: 'AUR (librenotes-bin)',
@@ -43,17 +41,41 @@ const LINUX_OPTIONS = [
   },
 ];
 
+// Windows 10-style logo from Material Design Icons (Iconify: mdi:microsoft-windows);
+// simple-icons no longer ships Microsoft brand icons.
+const siWindows = {
+  title: 'Windows',
+  path: 'M3 12V6.75l6-1.32v6.48zm17-9v8.75l-10 .15V5.21zM3 13l6 .09v6.81l-6-1.15zm17 .25V22l-10-1.91V13.1z',
+};
+
+// TODO: Windows ships in v1.8.0. Once a GitHub release carries the files,
+// point href at the /dl/windows short links (vercel.json).
+const WINDOWS_OPTIONS = [
+  {
+    label: 'Installer (.exe)',
+    description: 'Windows 10/11 setup wizard.',
+    href: GH_RELEASE,
+    icon: <BrandIcon icon={siWindows} size={20} />,
+  },
+  {
+    label: 'Portable (.zip)',
+    description: 'Unzip and run, no install.',
+    href: GH_RELEASE,
+    icon: <Package size={20} strokeWidth={1.6} />,
+  },
+];
+
 function DownloadCard({ icon, label, description, href, badge }) {
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex items-start gap-4 rounded-xl border p-5 transition-all duration-200 hover:border-[#ff6900] hover:-translate-y-0.5"
+      className="group flex min-h-[84px] items-center gap-4 rounded-xl border p-5 transition-all duration-200 hover:border-[#ff6900] hover:-translate-y-0.5"
       style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border)' }}
     >
       <div
-        className="mt-0.5 shrink-0 rounded-lg p-2 transition-colors group-hover:bg-[#ff6900] group-hover:text-white"
+        className="shrink-0 rounded-lg p-2 transition-colors group-hover:bg-[#ff6900] group-hover:text-white"
         style={{ background: 'var(--bg-surface)', color: 'var(--accent)' }}
       >
         {icon}
@@ -78,7 +100,7 @@ function DownloadCard({ icon, label, description, href, badge }) {
       </div>
       <ArrowRight
         size={14}
-        className="mt-1 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
         style={{ color: 'var(--accent)' }}
       />
     </a>
@@ -97,7 +119,7 @@ function SectionLabel({ icon, children }) {
 export default function DownloadSection() {
   return (
     <section id="download" className="px-4 py-24 sm:px-6 lg:px-8" style={{ background: 'var(--bg-base)' }}>
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         <div className="mb-14 text-center">
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl" style={{ color: 'var(--text-primary)' }}>
             Download
@@ -107,7 +129,7 @@ export default function DownloadSection() {
           </p>
         </div>
 
-        <div className="grid gap-10 lg:grid-cols-2">
+        <div className="grid gap-10 lg:grid-cols-3">
           {/* Linux */}
           <div>
             <SectionLabel icon={<BrandIcon icon={siLinux} size={16} />}>Linux</SectionLabel>
@@ -125,7 +147,7 @@ export default function DownloadSection() {
               <DownloadCard
                 href={FDROID_URL}
                 label="F-Droid"
-                description="FOSS-only Android app store. Available in the official repo."
+                description="Official F-Droid repo."
                 icon={<BrandIcon icon={siFdroid} size={20} />}
               />
               {/* TODO: point href at the Play listing and drop the badge once it's live. */}
@@ -134,14 +156,23 @@ export default function DownloadSection() {
                 label="Google Play"
                 description="Official Play Store listing."
                 icon={<BrandIcon icon={siGoogleplay} size={20} />}
-                badge="Coming soon"
               />
               <DownloadCard
                 href={GH_RELEASE}
                 label="Direct APK"
-                description="arm64-v8a release APK from GitHub releases."
+                description="arm64-v8a APK from GitHub."
                 icon={<Download size={20} strokeWidth={1.6} />}
               />
+            </div>
+          </div>
+
+          {/* Windows */}
+          <div>
+            <SectionLabel icon={<BrandIcon icon={siWindows} size={16} />}>Windows</SectionLabel>
+            <div className="space-y-3">
+              {WINDOWS_OPTIONS.map(o => (
+                <DownloadCard key={o.label} {...o} />
+              ))}
             </div>
 
             {/* Server setup callout */}
