@@ -1,22 +1,65 @@
-# LibreNotes
+<p align="center">
+  <img src="clients/app/fastlane/metadata/android/en-US/images/featureGraphic.png" alt="LibreNotes: your own personal notes client and server" width="720"/>
+</p>
 
-A private, self-hosted, end-to-end encrypted note-taking app. One owner, many
-devices. The server stores only ciphertext — it is encryption-blind by design.
+<p align="center">
+  <a href="https://github.com/Piliii/LibreNotes/actions/workflows/ci.yml"><img src="https://github.com/Piliii/LibreNotes/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <a href="https://github.com/Piliii/LibreNotes/releases/latest"><img src="https://img.shields.io/github/v/release/Piliii/LibreNotes?color=ff6900" alt="Latest release"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-ff6900" alt="License: AGPLv3"/></a>
+  <a href="https://f-droid.org/packages/dev.librenotes.app/"><img src="https://img.shields.io/f-droid/v/dev.librenotes.app?color=ff6900" alt="F-Droid version"/></a>
+</p>
 
-<a href="https://f-droid.org/packages/dev.librenotes.app/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="60"/></a>
+<p align="center">
+  A private, self-hosted, end-to-end encrypted note-taking app.<br/>
+  One owner, many devices. The server stores only ciphertext.
+</p>
 
-**Platforms:** Android (F-Droid), Linux desktop, web  
-**License:** AGPLv3
+<p align="center">
+  <a href="https://f-droid.org/packages/dev.librenotes.app/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="60"/></a>
+</p>
+
+<p align="center">
+  <a href="https://librenotes.ayopili.com">Website</a> ·
+  <a href="https://librenotes.ayopili.com/docs">Docs</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
+**Platforms:** Android (F-Droid), Linux desktop, web
+
+## Why LibreNotes?
+
+Most note apps make you choose between convenience and control. LibreNotes
+is built so you don't have to.
+
+- **Your server, your data.** Sync runs on a small server you host yourself,
+  on a home LAN or a Tailscale/WireGuard mesh. There is no account, no
+  vendor cloud, and nothing is sent to the developer.
+- **The server can't read your notes.** Everything is encrypted on your device
+  before it leaves, so the server only ever holds ciphertext. A new device
+  needs only your passphrase to unlock.
+- **Works fully offline.** Every device keeps a local, encrypted store and
+  syncs whenever the server is reachable. The app never waits on the network.
+- **You decide conflicts.** There is no CRDT magic. If two devices edit the
+  same note, you see both versions and pick the winner.
+- **Plain markdown, no lock-in.** Notes are ordinary markdown, and you can
+  export them all as `.md` files at any time.
+- **Genuinely free software.** AGPLv3, no trackers, no Google Play Services,
+  and no Electron. The desktop app is native Flutter.
 
 ## Features
 
 - Markdown notes with live preview
 - Dark theme, orange accent, resizable sidebar
 - Offline-first: full local cache, syncs opportunistically
-- End-to-end encryption (XChaCha20-Poly1305 + Argon2id key derivation)
+- End-to-end encryption (XChaCha20-Poly1305 + Argon2id key derivation),
+  plus encryption of notes at rest on each device
 - Conflict resolution: server detects stale writes and returns both versions; you pick the winner
-- Trash bin with restore and permanent delete
-- Self-hosted sync server (Shelf + SQLite, single compiled binary)
+- Archive, and a trash bin with restore and permanent delete
+- Text highlighting, custom and gradient note colors
+- Self-destructing notes, and quick capture with a global hotkey on Linux
+- Markdown import and export
+- Self-hosted sync server (Shelf + SQLite, single compiled binary or Docker image)
 
 ## Repository layout
 
@@ -73,6 +116,14 @@ app — no server code change needed. Never expose the server directly to the WA
   Argon2id. The wrapped DEK lives on the server; the passphrase never leaves
   the device.
 - Conflict detection runs on `rev` (plaintext metadata), not content.
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md).
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md), and please follow the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
