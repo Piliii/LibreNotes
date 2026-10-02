@@ -25,12 +25,14 @@ const LINUX_OPTIONS = [
     label: 'Debian / Ubuntu (.deb)',
     description: 'Debian, Ubuntu, Mint.',
     href: GH_RELEASE,
+    comingSoon: true,
     icon: <BrandIcon icon={siDebian} size={20} />,
   },
   {
     label: 'Fedora / openSUSE (.rpm)',
     description: 'Fedora, openSUSE, RPM distros.',
     href: GH_RELEASE,
+    comingSoon: true,
     icon: <BrandIcon icon={siFedora} size={20} />,
   },
   {
@@ -55,17 +57,52 @@ const WINDOWS_OPTIONS = [
     label: 'Installer (.exe)',
     description: 'Windows 10/11 setup wizard.',
     href: GH_RELEASE,
+    comingSoon: true,
     icon: <BrandIcon icon={siWindows} size={20} />,
   },
   {
     label: 'Portable (.zip)',
     description: 'Unzip and run, no install.',
     href: GH_RELEASE,
+    comingSoon: true,
     icon: <Package size={20} strokeWidth={1.6} />,
   },
 ];
 
-function DownloadCard({ icon, label, description, href, badge }) {
+function DownloadCard({ icon, label, description, href, badge, comingSoon }) {
+  if (comingSoon) {
+    return (
+      <div
+        aria-disabled="true"
+        className="flex min-h-[84px] cursor-not-allowed select-none items-center gap-4 rounded-xl border p-5 opacity-50 grayscale"
+        style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border)' }}
+      >
+        <div
+          className="shrink-0 rounded-lg p-2"
+          style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}
+        >
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {label}
+            </span>
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}
+            >
+              Coming soon
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            {description}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <a
       href={href}
@@ -168,7 +205,9 @@ export default function DownloadSection() {
 
           {/* Windows */}
           <div>
-            <SectionLabel icon={<BrandIcon icon={siWindows} size={16} />}>Windows</SectionLabel>
+            <div className="opacity-50 grayscale">
+              <SectionLabel icon={<BrandIcon icon={siWindows} size={16} />}>Windows (coming soon)</SectionLabel>
+            </div>
             <div className="space-y-3">
               {WINDOWS_OPTIONS.map(o => (
                 <DownloadCard key={o.label} {...o} />
