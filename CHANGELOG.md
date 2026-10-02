@@ -38,16 +38,6 @@ plain semver-ish tags (`vX.Y.Z`).
   and every sync request gives up after 15 seconds and shows as offline
   instead of hanging.
 
-## [1.5.6] — 2026-10-01
-
-### Fixed
-- Android: the app no longer sits on a black screen at launch when your sync
-  server is unreachable (e.g. a home-network address while you're away, with
-  internet on). The first sync now runs in the background after the app opens,
-  and every sync request gives up after 15 seconds and shows as offline
-  instead of hanging.
-
-## [1.5.5] — 2026-09-29
 
 ### Added
 - Website: a changelog page, linked from the nav bar and footer, plus a
