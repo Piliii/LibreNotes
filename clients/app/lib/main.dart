@@ -140,8 +140,8 @@ class _NotallyAppState extends State<NotallyApp> {
   void dispose() {
     if (!kIsWeb && Platform.isLinux) {
       HardwareKeyboard.instance.removeHandler(_handleKey);
-      widget.quickCapture?.teardown();
     }
+    widget.quickCapture?.teardown();
     super.dispose();
   }
 

@@ -9,7 +9,7 @@ import 'package:window_manager/window_manager.dart';
 import '../data/notes_repository.dart';
 import '../theme.dart';
 
-/// Global-hotkey quick capture for Linux desktop: Ctrl+Alt+N from anywhere
+/// Global-hotkey quick capture for Linux and Windows desktop: Ctrl+Alt+N from anywhere
 /// (even with LibreNotes unfocused or minimized) shrinks the app window into
 /// a small floating capture box, focuses a text field, and creates a note on
 /// Enter — then restores the window to exactly how it was before.
@@ -46,7 +46,8 @@ class QuickCaptureController {
   Rect? _savedBounds;
   bool _wasVisible = true;
 
-  static bool get _supported => !kIsWeb && Platform.isLinux;
+  static bool get _supported =>
+      !kIsWeb && (Platform.isLinux || Platform.isWindows);
 
   Future<void> init() async {
     if (!_supported) return;
