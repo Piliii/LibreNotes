@@ -26,7 +26,7 @@
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
-**Platforms:** Android (F-Droid, Google Play), Linux desktop, Windows desktop, web
+**Platforms:** Android (F-Droid, Google Play), Linux desktop, Windows desktop
 
 ## Why LibreNotes?
 
