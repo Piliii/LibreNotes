@@ -21,14 +21,24 @@ RUN apt-get update && \
     ln -s "$SQLITE_LIB" "$(dirname "$SQLITE_LIB")/libsqlite3.so"
 
 COPY --from=builder /librenotes-server /usr/local/bin/librenotes-server
+COPY server/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-RUN useradd -r -s /bin/false librenotes && \
+# Fixed UID/GID so ownership of a bind-mounted or pre-existing volume is
+# predictable across image rebuilds.
+RUN groupadd -r -g 10001 librenotes && \
+    useradd -r -u 10001 -g 10001 -s /bin/false librenotes && \
     mkdir -p /data && \
-    chown librenotes:librenotes /data
+    chown librenotes:librenotes /data && \
+    chmod +x /usr/local/bin/docker-entrypoint.sh
 
 VOLUME ["/data"]
 EXPOSE 8787
 ENV NOTALLY_DATA=/data
 
-USER librenotes
-ENTRYPOINT ["/usr/local/bin/librenotes-server"]
+# Starts as root only so the entrypoint can fix /data ownership (a fresh
+# volume mounted by a host is usually root-owned), then drops to `librenotes`.
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["/usr/local/bin/librenotes-server"]
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD ["/usr/local/bin/librenotes-server", "--healthcheck"]

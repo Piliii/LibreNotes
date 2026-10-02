@@ -14,7 +14,13 @@ import 'package:notally_server/db.dart';
 ///   NOTALLY_HOST   bind address (default 0.0.0.0 — your LAN; never the WAN)
 ///   NOTALLY_PORT   port (default 8787)
 ///   NOTALLY_TOKEN  bearer token; if unset, one is generated and persisted
-Future<void> main() async {
+///
+/// `--healthcheck` probes the local `/health` endpoint and exits 0/1 instead of
+/// starting a server — used by the Docker HEALTHCHECK, whose runtime image has
+/// no curl.
+Future<void> main(List<String> args) async {
+  if (args.contains('--healthcheck')) exit(await _healthcheck());
+
   final dataDir = Directory(
     Platform.environment['NOTALLY_DATA'] ?? 'data',
   )..createSync(recursive: true);
@@ -61,4 +67,22 @@ String _resolveToken(Directory dataDir) {
   final token = base64Url.encode(bytes).replaceAll('=', '');
   file.writeAsStringSync(token);
   return token;
+}
+
+/// Returns 0 if the server on NOTALLY_PORT answers `/health` with 200, else 1.
+Future<int> _healthcheck() async {
+  final port = int.tryParse(Platform.environment['NOTALLY_PORT'] ?? '') ?? 8787;
+  final client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
+  try {
+    final req = await client
+        .getUrl(Uri.parse('http://127.0.0.1:$port/health'))
+        .timeout(const Duration(seconds: 5));
+    final res = await req.close().timeout(const Duration(seconds: 5));
+    await res.drain<void>();
+    return res.statusCode == 200 ? 0 : 1;
+  } catch (_) {
+    return 1;
+  } finally {
+    client.close(force: true);
+  }
 }
