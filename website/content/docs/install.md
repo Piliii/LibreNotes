@@ -15,11 +15,9 @@ You can also download the APK from the [GitHub releases page](https://github.com
 - **Fedora, openSUSE and derivatives:** install the `.rpm` package.
 - **Any distribution:** download the AppImage or tarball from the [releases page](https://github.com/Piliii/LibreNotes/releases/latest).
 
-> The `.deb` and `.rpm` packages arrive with v1.6.0. Until then, use the AppImage or tarball.
-
 ### Debian, Ubuntu and derivatives
 
-Download `LibreNotes-<version>-amd64.deb` (or `arm64`) from the releases page, then:
+Download `LibreNotes-<version>-amd64.deb` from the releases page, then:
 
 ```bash
 sudo apt install ./LibreNotes-<version>-amd64.deb
@@ -29,14 +27,14 @@ sudo apt install ./LibreNotes-<version>-amd64.deb
 
 ### Fedora, openSUSE and derivatives
 
-Download `LibreNotes-<version>-x86_64.rpm` (or `aarch64`), then:
+Download `LibreNotes-<version>-x86_64.rpm`, then:
 
 ```bash
 sudo dnf install ./LibreNotes-<version>-x86_64.rpm     # Fedora
 sudo zypper install ./LibreNotes-<version>-x86_64.rpm  # openSUSE
 ```
 
-The package has been tested on Fedora. openSUSE and arm64 builds haven't been tested yet.
+The package has been tested on Fedora. openSUSE hasn't been tested yet. The packages are x86_64 only for now.
 
 Both packages install the app to `/opt/librenotes`, add a `librenotes` command and an application menu entry, and uninstall cleanly with your package manager.
 

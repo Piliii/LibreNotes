@@ -19,20 +19,16 @@ const LINUX_OPTIONS = [
     href: GH_RELEASE,
     icon: <Package size={20} strokeWidth={1.6} />,
   },
-  // TODO: point these at the real assets once a GitHub
-  // release actually ships the .deb/.rpm files (planned for v1.6.0).
   {
     label: 'Debian / Ubuntu (.deb)',
     description: 'Debian, Ubuntu, Mint.',
     href: GH_RELEASE,
-    comingSoon: true,
     icon: <BrandIcon icon={siDebian} size={20} />,
   },
   {
     label: 'Fedora / openSUSE (.rpm)',
     description: 'Fedora, openSUSE, RPM distros.',
     href: GH_RELEASE,
-    comingSoon: true,
     icon: <BrandIcon icon={siFedora} size={20} />,
   },
   {
