@@ -3,6 +3,7 @@ import Footer from '@/components/Footer';
 
 export const metadata = {
   title: 'Privacy Policy - LibreNotes',
+  alternates: { canonical: '/privacy' },
   description:
     'LibreNotes collects no data. No accounts, analytics, ads, or trackers. Notes stay on your devices and sync only to a server you run.',
 };
@@ -47,7 +48,7 @@ export default function PrivacyPage() {
   return (
     <>
       <Navbar />
-      <main className="px-4 pb-24 pt-32 sm:px-6 lg:px-8" style={{ background: 'var(--bg-base)' }}>
+      <main id="main" className="px-4 pb-24 pt-32 sm:px-6 lg:px-8" style={{ background: 'var(--bg-base)' }}>
         <article className="mx-auto max-w-3xl">
           <header className="text-center">
             <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" style={{ color: 'var(--text-primary)' }}>

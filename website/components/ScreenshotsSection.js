@@ -4,15 +4,15 @@ import { useEffect, useRef, useState } from 'react';
 import { X, ZoomIn, ZoomOut } from 'lucide-react';
 
 const SCREENSHOTS = [
-  { src: '/screenshots/1.jpg', label: 'Notes list' },
-  { src: '/screenshots/2.jpg', label: 'Note editor' },
-  { src: '/screenshots/3.jpg', label: 'Sync settings' },
+  { src: '/screenshots/1.jpg', label: 'Notes list', alt: 'LibreNotes on Android: a two-column grid of note cards' },
+  { src: '/screenshots/2.jpg', label: 'Note editor', alt: 'LibreNotes on Android: the note editor with a markdown note open' },
+  { src: '/screenshots/3.jpg', label: 'Sync settings', alt: 'LibreNotes on Android: the sync settings page' },
 ];
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
 
-function Phone({ src, label, onClick }) {
+function Phone({ src, label, alt, onClick }) {
   return (
     <button
       type="button"
@@ -29,7 +29,7 @@ function Phone({ src, label, onClick }) {
       >
         <img
           src={src}
-          alt={label}
+          alt={alt}
           style={{ display: 'block', width: '100%' }}
         />
       </div>
@@ -112,6 +112,9 @@ function ImageViewerModal({ screenshot, onClose }) {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={screenshot.label}
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
       style={{ background: 'rgba(0,0,0,0.85)' }}
       onClick={onClose}
@@ -120,7 +123,7 @@ function ImageViewerModal({ screenshot, onClose }) {
       <button
         type="button"
         onClick={onClose}
-        aria-label="Close"
+        aria-label="Close image viewer"
         className="absolute top-5 right-5 rounded-full p-2 text-white/80 transition-colors duration-200 hover:text-[#ff6900]"
         style={{ background: 'rgba(255,255,255,0.08)' }}
       >
@@ -169,7 +172,7 @@ function ImageViewerModal({ screenshot, onClose }) {
       >
         <img
           src={screenshot.src}
-          alt={screenshot.label}
+          alt={screenshot.alt}
           draggable={false}
           onClick={e => e.stopPropagation()}
           onMouseDown={onImageMouseDown}

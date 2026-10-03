@@ -108,6 +108,21 @@ The server is LAN-only by design. For access away from home, join devices and
 the server on a Tailscale or WireGuard mesh and update the server URL in the
 app — no server code change needed. Never expose the server directly to the WAN.
 
+### HTTPS
+
+The server speaks plain HTTP. To add TLS, put a reverse proxy in front of it and
+set `NOTALLY_HOST=127.0.0.1` so only the proxy can reach it. Use a certificate
+your devices trust, then enter the `https://` address as the Server URL.
+
+- **Tailscale:** `tailscale serve --bg 8787` serves it at
+  `https://<machine>.<tailnet>.ts.net` (enable HTTPS certificates in the admin
+  console first).
+- **Caddy:** `notes.example.com { reverse_proxy 127.0.0.1:8787 }`
+- **nginx:** `proxy_pass http://127.0.0.1:8787;` inside a TLS `server` block.
+
+Full examples are in the [sync docs](https://librenotes.ayopili.com/docs/sync-setup).
+HTTPS doesn't make it safe to expose the server to the public internet.
+
 ## Security model
 
 - All encryption and decryption happens on the client. The server never sees

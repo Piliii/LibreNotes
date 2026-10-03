@@ -18,10 +18,11 @@ function CopyButton({ text }) {
     <button
       onClick={handleCopy}
       title="Copy to clipboard"
+      aria-label={copied ? 'Copied' : 'Copy to clipboard'}
       className="absolute top-2 right-2 flex items-center justify-center rounded p-1.5 transition-all duration-300 cursor-pointer hover:rounded-[13px]"
       style={{
         background: copied ? '#1a3a1a' : '#1a1a1a',
-        color: copied ? '#4ade80' : '#555',
+        color: copied ? '#4ade80' : '#8a8a8a',
         border: '1px solid',
         borderColor: copied ? '#4ade80' : '#2a2a2a',
       }}
@@ -100,6 +101,8 @@ export default function ServerSetupSection() {
         {/* Method tabs */}
         <div className="mb-8 flex justify-center">
           <div
+            role="tablist"
+            aria-label="Install method"
             className="inline-flex rounded-xl p-1 gap-1"
             style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
           >
@@ -109,6 +112,9 @@ export default function ServerSetupSection() {
             ].map(({ id, label }) => (
               <button
                 key={id}
+                type="button"
+                role="tab"
+                aria-selected={method === id}
                 onClick={() => setMethod(id)}
                 className={`rounded-lg px-5 py-2 text-sm font-semibold transition-all duration-300 cursor-pointer hover:rounded-[18px] ${
                   method !== id ? 'hover:bg-white/5' : ''
@@ -172,7 +178,7 @@ export default function ServerSetupSection() {
               Want sync away from home too?
             </p>
             <p className="mt-0.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
-              Put your devices and server on a Tailscale or WireGuard mesh. No server changes needed - just update the URL in the app.
+              Put your devices and server on a Tailscale or WireGuard mesh. No server changes needed - just update the URL in the app. To add HTTPS, put a Caddy, nginx or Tailscale proxy in front.
             </p>
           </div>
           <a

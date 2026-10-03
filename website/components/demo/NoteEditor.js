@@ -87,6 +87,7 @@ function ToolButton({ onClick, title, active, children }) {
     <button
       onClick={onClick}
       title={title}
+      aria-label={title}
       className="flex items-center justify-center rounded-full p-1.5 transition-colors hover:brightness-125"
       style={{ color: active ? 'var(--accent)' : 'var(--text-secondary)' }}
     >
@@ -198,6 +199,7 @@ export default function NoteEditor({ note, onUpdate, onDelete, onArchive, onBack
             <input
               className="w-full bg-transparent text-3xl font-semibold outline-none placeholder:opacity-30 placeholder:font-normal"
               style={{ color: 'var(--text-primary)' }}
+              aria-label="Note title"
               placeholder="Title"
               value={title}
               onChange={handleTitle}
@@ -205,6 +207,7 @@ export default function NoteEditor({ note, onUpdate, onDelete, onArchive, onBack
             <textarea
               className="flex-1 w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:opacity-30"
               style={{ color: 'var(--text-primary)' }}
+              aria-label="Note body"
               placeholder="Start typing… markdown supported"
               value={body}
               onChange={handleBody}

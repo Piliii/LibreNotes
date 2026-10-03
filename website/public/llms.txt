@@ -1,0 +1,22 @@
+# LibreNotes
+
+> A private, offline-first markdown notes app for Android and Linux. Notes are end-to-end encrypted on your device and optionally synced to a server you host yourself. No accounts, no cloud, no trackers, no subscriptions. Free and open source (AGPLv3).
+
+LibreNotes works fully on its own. To use the same notes on several devices, run the small sync server on your home network or a private mesh such as Tailscale or WireGuard. The server only ever stores ciphertext, so it cannot read your notes. Conflicts are never auto-merged: when two devices edit the same note, you pick the winner.
+
+## Docs
+
+- [Introduction](https://librenotes.ayopili.com/docs): what LibreNotes is and how sync is optional
+- [Install the app](https://librenotes.ayopili.com/docs/install): Android and Linux
+- [Set up sync](https://librenotes.ayopili.com/docs/sync-setup): run the server with Docker or systemd, connect the app, add HTTPS
+- [Encryption & privacy](https://librenotes.ayopili.com/docs/encryption): XChaCha20-Poly1305 note encryption, Argon2id passphrase key derivation
+- [Troubleshooting](https://librenotes.ayopili.com/docs/troubleshooting)
+
+## Project
+
+- [Website](https://librenotes.ayopili.com)
+- [Source code (GitHub)](https://github.com/Piliii/LibreNotes)
+- [Changelog](https://librenotes.ayopili.com/changelog)
+- [Privacy policy](https://librenotes.ayopili.com/privacy)
+- [F-Droid](https://f-droid.org/packages/dev.librenotes.app/)
+- [Sync server Docker image](https://github.com/Piliii/LibreNotes/pkgs/container/librenotes-server)

@@ -35,7 +35,7 @@ export default function Navbar() {
     >
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         <a href="/#hero" className="flex items-center gap-2">
-          <img src="/icon.png" alt="LibreNotes" className="h-6 w-6 rounded-md" />
+          <img src="/icon.png" alt="" className="h-6 w-6 rounded-md" />
           <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
             LibreNotes
           </span>

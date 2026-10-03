@@ -10,6 +10,7 @@ export default function NotFound() {
     <>
       <Navbar />
       <main
+        id="main"
         className="flex min-h-screen flex-col items-center justify-center px-6 text-center"
         style={{ background: 'var(--bg-base)' }}
       >

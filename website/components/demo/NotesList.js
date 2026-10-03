@@ -143,7 +143,7 @@ export default function NotesList({ notes, selectedId, onSelect, onNew, view }) 
             Notes
           </span>
           <div className="flex items-center gap-3">
-            <button style={{ color: 'var(--text-secondary)' }} title="More">
+            <button style={{ color: 'var(--text-secondary)' }} title="More" aria-label="More options">
               <MoreVertical size={18} strokeWidth={1.8} />
             </button>
             <CloudCheck size={18} strokeWidth={1.8} style={{ color: '#4CAF50' }} />
@@ -158,6 +158,7 @@ export default function NotesList({ notes, selectedId, onSelect, onNew, view }) 
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
+            aria-label="Search notes"
             placeholder="Search notes…"
             className="w-full bg-transparent text-sm outline-none placeholder:opacity-70"
             style={{ color: 'var(--text-primary)' }}

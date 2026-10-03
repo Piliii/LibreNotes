@@ -43,6 +43,52 @@ The first device you connect creates your key. On your other devices, enter the 
 
 > **If you forget the passphrase, your synced notes can't be recovered.** The server can't reset it, because it never had it.
 
+## HTTPS (optional)
+
+The server speaks plain HTTP. Your notes are encrypted either way, but HTTPS also protects the token and metadata in transit, and is worth setting up before you sync outside your home network. Put a TLS-terminating proxy in front of the server and leave the server itself as it is. Set `NOTALLY_HOST=127.0.0.1` so only the proxy can reach it, then enter the `https://` address as the Server URL in the app.
+
+Use a certificate your devices already trust. A self-signed certificate will make the app refuse to connect.
+
+### Tailscale HTTPS
+
+The simplest option if you already use Tailscale. Enable HTTPS certificates in the Tailscale admin console, then run:
+
+```bash
+tailscale serve --bg 8787
+```
+
+Your server is now available at `https://<machine>.<tailnet>.ts.net` for devices on your tailnet.
+
+### Caddy
+
+Caddy gets and renews certificates automatically. This works when you own a domain name for the server:
+
+```
+notes.example.com {
+    reverse_proxy 127.0.0.1:8787
+}
+```
+
+### nginx
+
+```
+server {
+    listen 443 ssl;
+    server_name notes.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/notes.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/notes.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+HTTPS doesn't make it safe to expose the server to the public internet. Keep it on your home network or a private mesh.
+
 ## Server settings
 
 The server is configured with environment variables.

@@ -25,7 +25,7 @@ export default function Footer() {
           {/* Brand */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
-              <img src="/icon.png" alt="LibreNotes" className="h-7 w-7 rounded-md" />
+              <img src="/icon.png" alt="" className="h-7 w-7 rounded-md" />
               <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>LibreNotes</span>
             </div>
             <p className="max-w-xs text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>

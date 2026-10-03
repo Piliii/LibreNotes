@@ -63,7 +63,7 @@ export default function DocView({ doc }) {
   return (
     <>
       <Navbar />
-      <main className="px-4 pb-24 pt-28 sm:px-6 lg:px-8" style={{ background: 'var(--bg-base)' }}>
+      <main id="main" className="px-4 pb-24 pt-28 sm:px-6 lg:px-8" style={{ background: 'var(--bg-base)' }}>
         <div className="mx-auto flex max-w-5xl flex-col gap-10 md:flex-row md:gap-14">
           <aside className="md:sticky md:top-24 md:h-fit md:w-52 md:shrink-0">
             <Sidebar current={doc.slug} />

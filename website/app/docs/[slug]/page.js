@@ -12,7 +12,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }) {
   const { slug } = await params;
   const doc = getDoc(slug);
-  return doc ? { title: `${doc.title} - LibreNotes Docs` } : {};
+  return doc ? { title: `${doc.title} - LibreNotes Docs`, alternates: { canonical: doc.slug === 'introduction' ? '/docs' : `/docs/${doc.slug}` } } : {};
 }
 
 export default async function DocPage({ params }) {
