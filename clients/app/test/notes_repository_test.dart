@@ -101,6 +101,41 @@ void main() {
       expect((await repo.getNote(live))!.deleted, isFalse);
     });
 
+    test('ensureTrashGrace starts a one-time window that blocks the sweep',
+        () async {
+      final id = await repo.createNote();
+      await repo.deleteNote(id);
+      await backdate(id, trashRetention + const Duration(days: 1));
+
+      await repo.ensureTrashGrace();
+      final until = repo.trashGraceUntil!;
+      expect(until.difference(DateTime.now()).inHours, inInclusiveRange(71, 72));
+
+      await repo.sweepTrash();
+      expect((await repo.getNote(id))!.purged, isFalse);
+
+      // A later launch reloads the same deadline instead of restarting it.
+      await repo.ensureTrashGrace();
+      expect(repo.trashGraceUntil, until);
+    });
+
+    test('sweep resumes once the grace window has passed', () async {
+      final id = await repo.createNote();
+      await repo.deleteNote(id);
+      await backdate(id, trashRetention + const Duration(days: 1));
+      await repo.kvSet(
+          'trash.graceUntil',
+          DateTime.now()
+              .subtract(const Duration(minutes: 1))
+              .millisecondsSinceEpoch
+              .toString());
+
+      await repo.ensureTrashGrace();
+      await repo.sweepTrash();
+
+      expect((await repo.getNote(id))!.purged, isTrue);
+    });
+
     test('purged notes drop out of the trash list', () async {
       final id = await repo.createNote();
       await repo.deleteNote(id);

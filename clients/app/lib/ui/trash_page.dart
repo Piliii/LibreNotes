@@ -189,7 +189,7 @@ class _TrashItem extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         'Deleted ${relativeTime(note.updatedAt)} · '
-                        '${trashRemainingLabel(note.updatedAt, retention: trashRetention)}',
+                        '${trashRemainingLabel(note.updatedAt, retention: trashRetention, graceUntil: repo.trashGraceUntil)}',
                         style: const TextStyle(
                             color: NotallyColors.textFaint, fontSize: 12),
                       ),
@@ -320,7 +320,7 @@ class _TrashedNoteView extends StatelessWidget {
               ],
               Text(
                 'Deleted ${relativeTime(note.updatedAt)} · '
-                '${trashRemainingLabel(note.updatedAt, retention: trashRetention)}',
+                '${trashRemainingLabel(note.updatedAt, retention: trashRetention, graceUntil: repo.trashGraceUntil)}',
                 style: const TextStyle(
                     color: NotallyColors.textFaint, fontSize: 13),
               ),

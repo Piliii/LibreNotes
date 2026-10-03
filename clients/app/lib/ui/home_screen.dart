@@ -13,6 +13,7 @@ import 'archive_page.dart';
 import 'import_export_page.dart';
 import 'note_editor.dart';
 import 'sync_settings_page.dart';
+import 'trash_page.dart';
 
 enum _DesktopLayout { sidebar, tabs }
 
@@ -96,11 +97,57 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadPrefs();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _maybeShowTrashPurgeNotice();
       if (MediaQuery.sizeOf(context).width >= _desktopBreakpoint) _newNote();
     });
     HardwareKeyboard.instance.addHandler(_trackModifierKeys);
     if (!kIsWeb && Platform.isLinux) {
       HardwareKeyboard.instance.addHandler(_handleKey);
+    }
+  }
+
+  /// One-time heads-up about trash auto-purge and its grace period. Marked
+  /// seen as soon as it's shown, so it never appears twice.
+  Future<void> _maybeShowTrashPurgeNotice() async {
+    const key = 'notice.trashPurge';
+    if (await widget.repo.kvGet(key) != null) return;
+    if (!mounted) return;
+    await widget.repo.kvSet(key, '1');
+    if (!mounted) return;
+    final openTrash = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: NotallyColors.surface,
+        title: const Text('Trash now empties itself',
+            style: TextStyle(color: NotallyColors.textBright)),
+        content: Text(
+          'Notes in the trash are now permanently deleted '
+          '${trashRetention.inDays} days after you trash them.\n\n'
+          'Notes that have already been in the trash for more than '
+          '${trashRetention.inDays} days get a ${trashPurgeGrace.inDays}-day '
+          'grace period before they are deleted. Restore anything you want '
+          'to keep before then.',
+          style: const TextStyle(color: NotallyColors.textMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Got it',
+                style: TextStyle(color: NotallyColors.textMuted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Open Trash',
+                style: TextStyle(color: NotallyColors.accent)),
+          ),
+        ],
+      ),
+    );
+    if (openTrash == true && mounted) {
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) =>
+            TrashPage(repo: widget.repo, onChanged: widget.sync.nudge),
+      ));
     }
   }
 

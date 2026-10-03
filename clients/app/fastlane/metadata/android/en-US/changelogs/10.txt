@@ -1,0 +1,5 @@
+- Trash now empties itself: notes are permanently deleted 30 days after being trashed. Notes already older than that get a 3-day grace period after you update, and a one-time notice explains it.
+- New launch screen
+- App version shown on the Sync page
+- Linux .deb and .rpm packages
+- Server: Docker volume permission fix and health check

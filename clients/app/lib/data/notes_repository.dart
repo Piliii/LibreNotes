@@ -47,6 +47,13 @@ class NoteRow {
 /// permanently deletes it.
 const trashRetention = Duration(days: 30);
 
+/// One-time grace period after the app first runs a version with trash
+/// auto-purge: notes that were already past [trashRetention] aren't deleted
+/// until it ends, giving the user time to restore them.
+const trashPurgeGrace = Duration(days: 3);
+
+const _kvTrashGraceUntil = 'trash.graceUntil';
+
 /// CRUD over the local notes table. Everything the UI does goes through here so
 /// that adding sync later (mark dirty, push/pull) is a change in one place.
 ///
@@ -283,6 +290,8 @@ class NotesRepository {
   /// trashed (locally, or from the server's tombstone) and doesn't change
   /// while it stays there.
   Future<void> sweepTrash({Duration retention = trashRetention}) async {
+    final graceUntil = _trashGraceUntil;
+    if (graceUntil != null && DateTime.now().isBefore(graceUntil)) return;
     final cutoff = DateTime.now().subtract(retention).millisecondsSinceEpoch;
     final stale = await (_db.select(_db.notes)
           ..where((t) =>
@@ -293,6 +302,26 @@ class NotesRepository {
     for (final note in stale) {
       await markForPurge(note.id);
     }
+  }
+
+  DateTime? _trashGraceUntil;
+
+  /// End of the one-time [trashPurgeGrace] window, or null if
+  /// [ensureTrashGrace] hasn't run. Until then [sweepTrash] purges nothing,
+  /// and a trashed note's effective deadline is no earlier than this.
+  DateTime? get trashGraceUntil => _trashGraceUntil;
+
+  /// Starts the grace window the first time it's called on this install and
+  /// loads it on later runs. Call once at startup, before [startSweeps].
+  Future<void> ensureTrashGrace() async {
+    final stored = int.tryParse(await kvGet(_kvTrashGraceUntil) ?? '');
+    if (stored != null) {
+      _trashGraceUntil = DateTime.fromMillisecondsSinceEpoch(stored);
+      return;
+    }
+    final untilMs = DateTime.now().add(trashPurgeGrace).millisecondsSinceEpoch;
+    await kvSet(_kvTrashGraceUntil, untilMs.toString());
+    _trashGraceUntil = DateTime.fromMillisecondsSinceEpoch(untilMs);
   }
 
   /// Starts the periodic client-side housekeeping: tombstones expired

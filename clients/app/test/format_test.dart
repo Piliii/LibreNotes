@@ -62,6 +62,24 @@ void main() {
     String label(Duration ago) =>
         trashRemainingLabel(deleted(ago), retention: retention, now: now);
 
+    test('a later grace deadline overrides an overdue note', () {
+      final overdue = deleted(const Duration(days: 40));
+      expect(
+        trashRemainingLabel(overdue,
+            retention: retention,
+            graceUntil: now.add(const Duration(days: 3)),
+            now: now),
+        '3 days left',
+      );
+      expect(
+        trashRemainingLabel(overdue,
+            retention: retention,
+            graceUntil: now.subtract(const Duration(days: 1)),
+            now: now),
+        'Deleting soon',
+      );
+    });
+
     test('just trashed has the full window left', () {
       expect(label(Duration.zero), '30 days left');
     });

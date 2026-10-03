@@ -6,13 +6,16 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [1.5.7] — 2026-10-03
+
 ### Added
 - The Sync page now shows the app version and build number at the bottom.
 - Trash: notes are now permanently deleted 30 days after being trashed
   (on every device, via the same purge that "Delete permanently" uses). The
   Trash page shows how many days each note has left. **Notes that have
-  already been in the trash for more than 30 days when you update will be
-  purged the first time the app runs.**
+  already been in the trash for more than 30 days when you update get a
+  3-day grace period** (counted from the first launch after updating) before
+  they are deleted, and a one-time notice explains this when the app opens.
 - Startup: a proper launch screen instead of a blank window — the LibreNotes
   icon on a dark background on Android (using the Android 12+ splash screen
   where available), and an icon-and-name loading screen on desktop while the

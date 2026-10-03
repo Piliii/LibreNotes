@@ -21,14 +21,19 @@ String relativeTime(int ms) {
 
 /// How long a trashed note has left before auto-purge, e.g. "12 days left".
 /// [deletedAtMs] is when it was trashed; reads "Deleting soon" once the
-/// retention window has (nearly) run out.
+/// retention window has (nearly) run out. A [graceUntil] later than the
+/// note's own deadline pushes the deadline out to it.
 String trashRemainingLabel(
   int deletedAtMs, {
   required Duration retention,
+  DateTime? graceUntil,
   DateTime? now,
 }) {
-  final deadline =
+  var deadline =
       DateTime.fromMillisecondsSinceEpoch(deletedAtMs).add(retention);
+  if (graceUntil != null && graceUntil.isAfter(deadline)) {
+    deadline = graceUntil;
+  }
   final left = deadline.difference(now ?? DateTime.now());
   if (left <= Duration.zero) return 'Deleting soon';
   final days = (left.inMinutes / Duration.minutesPerDay).ceil();
