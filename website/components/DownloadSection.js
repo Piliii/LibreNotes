@@ -10,25 +10,25 @@ const LINUX_OPTIONS = [
   {
     label: 'AppImage',
     description: 'Runs on any Linux distro.',
-    href: GH_RELEASE,
+    href: '/dl/appimage',
     icon: <Download size={20} strokeWidth={1.6} />,
   },
   {
     label: 'Tarball (.tar.gz)',
     description: 'Portable archive for manual install.',
-    href: GH_RELEASE,
+    href: '/dl/tarball',
     icon: <Package size={20} strokeWidth={1.6} />,
   },
   {
     label: 'Debian / Ubuntu (.deb)',
     description: 'Debian, Ubuntu, Mint.',
-    href: GH_RELEASE,
+    href: '/dl/deb',
     icon: <BrandIcon icon={siDebian} size={20} />,
   },
   {
     label: 'Fedora / openSUSE (.rpm)',
     description: 'Fedora, openSUSE, RPM distros.',
-    href: GH_RELEASE,
+    href: '/dl/rpm',
     icon: <BrandIcon icon={siFedora} size={20} />,
   },
   {
@@ -192,7 +192,7 @@ export default function DownloadSection() {
                 icon={<BrandIcon icon={siGoogleplay} size={20} />}
               />
               <DownloadCard
-                href={GH_RELEASE}
+                href="/dl/apk"
                 label="Direct APK"
                 description="arm64-v8a APK from GitHub."
                 icon={<Download size={20} strokeWidth={1.6} />}

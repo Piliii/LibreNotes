@@ -11,11 +11,6 @@
       "permanent": false
     },
     {
-      "source": "/dl/apk",
-      "destination": "https://github.com/Piliii/LibreNotes/releases/latest",
-      "permanent": false
-    },
-    {
       "source": "/github",
       "destination": "https://github.com/Piliii/LibreNotes",
       "permanent": false
@@ -29,6 +24,28 @@
       "source": "/dl/fdroid",
       "destination": "https://f-droid.org/en/packages/dev.librenotes.app/",
       "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/dl/deb",
+      "destination": "/api/dl?kind=deb"
+    },
+    {
+      "source": "/dl/rpm",
+      "destination": "/api/dl?kind=rpm"
+    },
+    {
+      "source": "/dl/appimage",
+      "destination": "/api/dl?kind=appimage"
+    },
+    {
+      "source": "/dl/tarball",
+      "destination": "/api/dl?kind=tarball"
+    },
+    {
+      "source": "/dl/apk",
+      "destination": "/api/dl?kind=apk"
     }
   ]
 }
