@@ -32,17 +32,8 @@ void main() {
       expect(previewText('line one\nline two'), 'line one line two');
     });
 
-    test('strips heading markers', () {
-      expect(previewText('# Title\nbody'), 'Title body');
-    });
-
-    test('strips emphasis, code, and quote markers', () {
-      expect(previewText('**bold** _em_ `code` > quote ~strike~'),
-          'bold em code  quote strike');
-    });
-
-    test('turns list bullets into •', () {
-      expect(previewText('- first\n- second'), '• first • second');
+    test('leaves markdown characters untouched', () {
+      expect(previewText('# Title\n**bold** - item'), '# Title **bold** - item');
     });
 
     test('trims surrounding whitespace', () {

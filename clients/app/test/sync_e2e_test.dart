@@ -183,7 +183,37 @@ void main() {
 
       expect(dev.sync.status.value.state, SyncState.error);
       expect(dev.sync.status.value.message, contains('Server API v2'));
+      expect(dev.sync.status.value.versionMismatch, isTrue);
+      // Still tells the user how stale the device is.
+      expect(dev.sync.status.value.lastSyncedAt, isNotNull);
     });
+  });
+
+  test('status tracks last-synced time and pending local edits', () async {
+    expect(dev1.sync.status.value.lastSyncedAt, isNotNull);
+    expect(dev1.sync.pending.value, 0);
+
+    await dev1.write(title: 'Draft', body: 'not pushed yet');
+    await dev1.sync.refreshPending();
+    expect(dev1.sync.pending.value, 1);
+
+    await dev1.sync.syncNow();
+    expect(dev1.sync.pending.value, 0);
+    expect(dev1.sync.status.value.state, SyncState.ok);
+  });
+
+  test('going offline keeps the last-synced time and the pending count',
+      () async {
+    await dev1.sync.syncNow();
+    final syncedAt = dev1.sync.status.value.lastSyncedAt!;
+
+    await server.close(force: true);
+    await dev1.write(title: 'Offline edit', body: 'x');
+    await dev1.sync.syncNow();
+
+    expect(dev1.sync.status.value.state, SyncState.offline);
+    expect(dev1.sync.status.value.lastSyncedAt, syncedAt);
+    expect(dev1.sync.pending.value, 1);
   });
 
   test('a delete on one device propagates as a tombstone to the other',

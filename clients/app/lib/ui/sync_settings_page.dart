@@ -160,28 +160,48 @@ class _StatusBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<SyncStatus>(
       valueListenable: service.status,
-      builder: (_, s, __) {
-        final (icon, color, text) = _describe(s);
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: NotallyColors.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: NotallyColors.border),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(text,
-                    style: const TextStyle(
-                        color: NotallyColors.textPrimary, fontSize: 14)),
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (_, s, __) => ValueListenableBuilder<int>(
+        valueListenable: service.pending,
+        builder: (_, pending, __) {
+          final (icon, color, text) = _describe(s);
+          final details = _details(s, pending);
+          return Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: NotallyColors.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: NotallyColors.border),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(text,
+                          style: const TextStyle(
+                              color: NotallyColors.textPrimary, fontSize: 14)),
+                      for (final d in details)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(d,
+                              style: const TextStyle(
+                                  color: NotallyColors.textFaint, fontSize: 12)),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -195,20 +215,46 @@ class _StatusBanner extends StatelessWidget {
       case SyncState.syncing:
         return (Icons.sync, NotallyColors.accent, s.message ?? 'Syncing…');
       case SyncState.ok:
-        return (Icons.cloud_done, const Color(0xFF4CAF50),
-            'Synced${s.lastSyncedAt != null ? ' • ${_time(s.lastSyncedAt!)}' : ''}');
+        return (Icons.cloud_done, const Color(0xFF4CAF50), 'Up to date');
       case SyncState.offline:
         return (Icons.cloud_off, NotallyColors.textMuted,
-            'Offline — ${s.message ?? 'server unreachable'}');
+            'Offline — can’t reach the server. Your notes are safe on this '
+                'device and will sync when it’s back.');
       case SyncState.error:
+        if (s.versionMismatch) {
+          return (Icons.system_update_alt, NotallyColors.accent,
+              s.message ?? 'App and server versions don’t match.');
+        }
         return (Icons.error_outline, NotallyColors.accent,
             s.message ?? 'Something went wrong.');
     }
   }
 
-  static String _time(DateTime d) {
+  /// Secondary lines: last-synced time, pending edits, and the raw reason
+  /// when the headline is a friendly summary of it.
+  static List<String> _details(SyncStatus s, int pending) {
+    if (s.state == SyncState.notConfigured || s.state == SyncState.locked) {
+      return const [];
+    }
+    return [
+      if (s.lastSyncedAt != null)
+        'Last synced ${_ago(s.lastSyncedAt!)}'
+      else if (s.state != SyncState.syncing)
+        'Not synced yet this session',
+      if (pending > 0)
+        '$pending change${pending == 1 ? '' : 's'} waiting to sync',
+      if (s.state == SyncState.offline && s.message != null) s.message!,
+    ];
+  }
+
+  static String _ago(DateTime d) {
     String two(int v) => v.toString().padLeft(2, '0');
-    return '${two(d.hour)}:${two(d.minute)}';
+    final diff = DateTime.now().difference(d);
+    if (diff.inSeconds < 30) return 'just now';
+    if (diff.inMinutes < 1) return '${diff.inSeconds}s ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago (${two(d.hour)}:${two(d.minute)})';
+    return '${d.year}-${two(d.month)}-${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
   }
 }
 

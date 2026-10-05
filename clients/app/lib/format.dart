@@ -40,22 +40,5 @@ String trashRemainingLabel(
   return days == 1 ? '1 day left' : '$days days left';
 }
 
-/// First non-empty content, flattened to a single line for list/card previews.
-/// Strips the most common markdown markers so previews read cleanly.
-String previewText(String body) {
-  final flat = body
-      .replaceAllMapped(
-        RegExp(r'\[([^\]]*)\]\([^)]*\)'),
-        (m) => m.group(1) ?? '',
-      )
-      .replaceAllMapped(
-        RegExp(r'==(.+?)==\^\w+'),
-        (m) => m.group(1) ?? '',
-      )
-      .replaceAll(RegExp(r'^#{1,6}\s+', multiLine: true), '')
-      .replaceAll(RegExp(r'[*_`>~]'), '')
-      .replaceAll(RegExp(r'^\s*[-+]\s+', multiLine: true), '• ')
-      .replaceAll('\n', ' ')
-      .trim();
-  return flat.isEmpty ? '' : flat;
-}
+/// Body flattened to a single line for list/card previews.
+String previewText(String body) => body.replaceAll(RegExp(r'\s*\n\s*'), ' ').trim();

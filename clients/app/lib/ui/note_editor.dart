@@ -3,18 +3,11 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart' hide colorFromHex;
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../data/notes_repository.dart';
-import '../markdown_editing_controller.dart';
-import '../markdown_format.dart';
-import '../markdown_highlight.dart';
 import '../theme.dart';
 
-/// The editing surface (title + markdown body) with ~500 ms debounced autosave.
-/// A toolbar toggle flips the body between editing and a rendered markdown
-/// preview.
+/// The editing surface (title + plain-text body) with ~500 ms debounced autosave.
 class NoteEditor extends StatefulWidget {
   const NoteEditor({
     super.key,
@@ -42,12 +35,11 @@ class NoteEditor extends StatefulWidget {
 
 class _NoteEditorState extends State<NoteEditor> {
   final _titleCtrl = TextEditingController();
-  final _bodyCtrl = MarkdownEditingController();
+  final _bodyCtrl = TextEditingController();
   final _bodyFocus = FocusNode();
   StreamSubscription<NoteRow?>? _sub;
   Timer? _debounce;
   bool _loading = true;
-  bool _preview = false;
   String _color = '#2a2a2a';
   int? _expiresAt;
   bool _applying = false;
@@ -86,7 +78,6 @@ class _NoteEditorState extends State<NoteEditor> {
           widget.onEdited?.call();
         }
       }
-      _preview = false;
       _subscribe();
     }
   }
@@ -235,9 +226,7 @@ class _NoteEditorState extends State<NoteEditor> {
                   ),
                   const SizedBox(height: 8),
                   Expanded(
-                    child: _preview
-                        ? _previewBody(textColors)
-                        : _editBody(textColors),
+                    child: _editBody(textColors),
                   ),
                 ],
               ),
@@ -284,13 +273,6 @@ class _NoteEditorState extends State<NoteEditor> {
                     color: textColors.faint,
                   ),
                   _ToolButton(
-                    icon: _preview ? Icons.edit_outlined : Icons.visibility_outlined,
-                    tooltip: _preview ? 'Edit' : 'Preview',
-                    active: _preview,
-                    onTap: () => setState(() => _preview = !_preview),
-                    color: textColors.faint,
-                  ),
-                  _ToolButton(
                     icon: Icons.archive_outlined,
                     tooltip: 'Archive',
                     onTap: _archive,
@@ -321,122 +303,9 @@ class _NoteEditorState extends State<NoteEditor> {
       style: TextStyle(color: textColors.primary, fontSize: 16, height: 1.5),
       decoration: InputDecoration(
         border: InputBorder.none,
-        hintText: 'Start typing… markdown supported',
+        hintText: 'Start typing…',
         hintStyle: TextStyle(color: textColors.faint),
       ),
-      contextMenuBuilder: _bodyContextMenuBuilder,
-    );
-  }
-
-  /// Adds formatting actions — Bold, Italic, Heading, Bullet list,
-  /// Highlight/Remove highlight — to the native text selection toolbar (the
-  /// same one that shows Cut/Copy/Paste). This is the "WYSIWYG mode": select
-  /// text, get visual actions, they apply the equivalent Markdown under the
-  /// hood — the body stays plain Markdown the whole time, this is just an
-  /// alternative to typing the syntax by hand. It's the one hook that works
-  /// for both a mouse drag-select on desktop and a long-press select on
-  /// mobile, so one implementation covers both.
-  Widget _bodyContextMenuBuilder(
-      BuildContext context, EditableTextState editableTextState) {
-    final value = editableTextState.textEditingValue;
-    final selection = value.selection;
-    final items = List<ContextMenuButtonItem>.of(
-        editableTextState.contextMenuButtonItems);
-    if (selection.isValid && !selection.isCollapsed) {
-      final selectedText = selection.textInside(value.text);
-      void dismissThen(VoidCallback action) {
-        ContextMenuController.removeAny();
-        action();
-      }
-
-      items.addAll([
-        ContextMenuButtonItem(
-          label: 'Bold',
-          onPressed: () => dismissThen(() => _replaceSelection(
-              selection, toggleBold(selectedText))),
-        ),
-        ContextMenuButtonItem(
-          label: 'Italic',
-          onPressed: () => dismissThen(() => _replaceSelection(
-              selection, toggleItalic(selectedText))),
-        ),
-        ContextMenuButtonItem(
-          label: 'Heading',
-          onPressed: () => dismissThen(() => _pickHeading(selection)),
-        ),
-        ContextMenuButtonItem(
-          label: 'Bullet list',
-          onPressed: () => dismissThen(() => _bodyCtrl.value =
-              toggleBulletList(_bodyCtrl.text, selection)),
-        ),
-      ]);
-      final exact = matchExactHighlight(selectedText);
-      items.add(ContextMenuButtonItem(
-        label: exact != null ? 'Remove highlight' : 'Highlight',
-        onPressed: () => dismissThen(() {
-          if (exact != null) {
-            _replaceSelection(selection, exact.inner);
-          } else {
-            _highlightSelection(selection);
-          }
-        }),
-      ));
-    }
-    return AdaptiveTextSelectionToolbar.buttonItems(
-      anchors: editableTextState.contextMenuAnchors,
-      buttonItems: items,
-    );
-  }
-
-  void _replaceSelection(TextSelection selection, String replacement) {
-    final text = _bodyCtrl.text;
-    final newText = text.replaceRange(selection.start, selection.end, replacement);
-    _bodyCtrl.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(
-          offset: selection.start + replacement.length),
-    );
-  }
-
-  Future<void> _highlightSelection(TextSelection selection) async {
-    final selected = selection.textInside(_bodyCtrl.text);
-    final colorKey = await showDialog<String>(
-      context: context,
-      builder: (_) => const HighlightColorPickerDialog(),
-    );
-    if (colorKey == null || !mounted) return;
-    _replaceSelection(selection, wrapHighlight(selected, colorKey));
-  }
-
-  Future<void> _pickHeading(TextSelection selection) async {
-    final result = await showDialog<HeadingResult>(
-      context: context,
-      builder: (_) => const HeadingPickerDialog(),
-    );
-    if (result == null || !mounted) return;
-    _bodyCtrl.value = applyHeading(_bodyCtrl.text, selection, result.level);
-  }
-
-  Widget _previewBody(NoteTextColors textColors) {
-    final text = _bodyCtrl.text.trim();
-    if (text.isEmpty) {
-      return Align(
-        alignment: Alignment.topLeft,
-        child: Text('Nothing to preview yet.',
-            style: TextStyle(color: textColors.faint, fontSize: 15)),
-      );
-    }
-    return Markdown(
-      data: text,
-      padding: EdgeInsets.zero,
-      styleSheet: notallyMarkdownStyle(colors: textColors),
-      inlineSyntaxes: [HighlightSyntax()],
-      builders: {'mark': HighlightBuilder()},
-      onTapLink: (_, href, __) async {
-        if (href == null) return;
-        final uri = Uri.tryParse(href);
-        if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
-      },
     );
   }
 
@@ -467,14 +336,12 @@ class _ToolButton extends StatelessWidget {
     required this.tooltip,
     required this.onTap,
     required this.color,
-    this.active = false,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
   final Color color;
-  final bool active;
 
   @override
   Widget build(BuildContext context) {
@@ -482,7 +349,7 @@ class _ToolButton extends StatelessWidget {
       tooltip: tooltip,
       onPressed: onTap,
       iconSize: 20,
-      color: active ? NotallyColors.accent : color,
+      color: color,
       icon: Icon(icon),
     );
   }
@@ -534,39 +401,6 @@ class NoteEditorPage extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class HighlightColorPickerDialog extends StatelessWidget {
-  const HighlightColorPickerDialog({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: NotallyColors.surface,
-      title: const Text(
-        'Highlight color',
-        style: TextStyle(color: NotallyColors.textBright, fontSize: 16),
-      ),
-      content: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: kHighlightColors.entries.map((entry) {
-          return GestureDetector(
-            onTap: () => Navigator.pop(context, entry.key),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: entry.value,
-                shape: BoxShape.circle,
-                border: Border.all(color: NotallyColors.border, width: 1.5),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
     );
   }
 }
@@ -828,53 +662,6 @@ class _NoteColorPickerDialogState extends State<NoteColorPickerDialog> {
             ),
           ),
       ],
-    );
-  }
-}
-
-/// Result of [HeadingPickerDialog]: [level] is 1-3 for a heading size, or
-/// `null` to remove any heading from the selected line(s).
-class HeadingResult {
-  const HeadingResult(this.level);
-
-  final int? level;
-}
-
-/// Lets the user pick a heading level (or remove one) for the line(s) the
-/// current selection touches. Pops `null` if dismissed without a choice.
-class HeadingPickerDialog extends StatelessWidget {
-  const HeadingPickerDialog({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: NotallyColors.surface,
-      title: const Text('Heading',
-          style: TextStyle(color: NotallyColors.textBright, fontSize: 16)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final level in [1, 2, 3])
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                'Heading $level',
-                style: TextStyle(
-                  color: NotallyColors.textBright,
-                  fontSize: 22 - level * 3,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              onTap: () => Navigator.pop(context, HeadingResult(level)),
-            ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Remove heading',
-                style: TextStyle(color: NotallyColors.accent)),
-            onTap: () => Navigator.pop(context, const HeadingResult(null)),
-          ),
-        ],
-      ),
     );
   }
 }

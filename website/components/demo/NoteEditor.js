@@ -1,86 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Palette, Pencil, Eye, Archive, Trash2 } from 'lucide-react';
+import { Palette, Archive, Trash2 } from 'lucide-react';
 import { timeAgo } from './format';
 
 // Same rotation the real app's color picker offers, cycled on each click
 // instead of a full swatch popover (the marketing demo doesn't need one).
 const COLOR_CYCLE = [null, '#3a2a1e', '#1e3a5f', '#2a1e3a', '#1e3a2a'];
-
-const S = {
-  h1: { color: '#f0f0f0', fontSize: '1.5rem', fontWeight: 700, margin: '0.8em 0 0.4em', lineHeight: 1.3 },
-  h2: { color: '#f0f0f0', fontSize: '1.25rem', fontWeight: 600, margin: '0.8em 0 0.35em', lineHeight: 1.3 },
-  h3: { color: '#f0f0f0', fontSize: '1.1rem', fontWeight: 600, margin: '0.7em 0 0.3em', lineHeight: 1.3 },
-  p:  { color: '#f0f0f0', margin: '0.5em 0', lineHeight: 1.7 },
-  ul: { margin: '0.4em 0', paddingLeft: '1.4em', listStyleType: 'disc' },
-  ol: { margin: '0.4em 0', paddingLeft: '1.4em', listStyleType: 'decimal' },
-  li: { color: '#f0f0f0', margin: '0.15em 0', lineHeight: 1.6 },
-  hr: { border: 'none', borderTop: '1px solid #333333', margin: '1.25em 0' },
-  blockquote: { borderLeft: '3px solid #ff6900', paddingLeft: '0.9em', margin: '0.75em 0', color: '#a0a0a0', fontStyle: 'italic' },
-  inlineCode: { background: '#1a1a1a', color: '#ff6900', padding: '0.1em 0.35em', borderRadius: '3px', fontSize: '0.85em', fontFamily: 'monospace' },
-  a: { color: '#60a5fa', textDecoration: 'underline' },
-  strong: { color: '#f0f0f0', fontWeight: 600 },
-  em: { color: '#f0f0f0', fontStyle: 'italic' },
-  del: { color: '#a0a0a0', textDecoration: 'line-through' },
-};
-
-function MarkdownPre({ children }) {
-  const codeEl = Array.isArray(children) ? children[0] : children;
-  const className = codeEl?.props?.className || '';
-  const match = /language-(\w+)/.exec(className);
-  const code = String(codeEl?.props?.children || '').replace(/\n$/, '');
-
-  if (match) {
-    return (
-      <SyntaxHighlighter
-        language={match[1]}
-        style={vscDarkPlus}
-        customStyle={{ margin: '0.75em 0', borderRadius: '6px', fontSize: '0.82em', padding: '1em' }}
-        codeTagProps={{ style: { fontFamily: 'monospace' } }}
-      >
-        {code}
-      </SyntaxHighlighter>
-    );
-  }
-
-  return (
-    <pre style={{ background: '#1a1a1a', padding: '0.9em 1em', borderRadius: '6px', margin: '0.75em 0', overflowX: 'auto', fontSize: '0.82em', fontFamily: 'monospace', color: '#f0f0f0' }}>
-      <code>{code}</code>
-    </pre>
-  );
-}
-
-const mdComponents = {
-  h1: ({ children }) => <h1 style={S.h1}>{children}</h1>,
-  h2: ({ children }) => <h2 style={S.h2}>{children}</h2>,
-  h3: ({ children }) => <h3 style={S.h3}>{children}</h3>,
-  p:  ({ children }) => <p style={S.p}>{children}</p>,
-  ul: ({ children }) => <ul style={S.ul}>{children}</ul>,
-  ol: ({ children }) => <ol style={S.ol}>{children}</ol>,
-  li: ({ children }) => <li style={S.li}>{children}</li>,
-  hr: () => <hr style={S.hr} />,
-  blockquote: ({ children }) => <blockquote style={S.blockquote}>{children}</blockquote>,
-  strong: ({ children }) => <strong style={S.strong}>{children}</strong>,
-  em: ({ children }) => <em style={S.em}>{children}</em>,
-  del: ({ children }) => <del style={S.del}>{children}</del>,
-  a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={S.a}>{children}</a>,
-  pre: MarkdownPre,
-  code: ({ children, className }) => {
-    if (className) return <code className={className}>{children}</code>;
-    return <code style={S.inlineCode}>{children}</code>;
-  },
-  input: ({ type, checked }) => {
-    if (type === 'checkbox') {
-      return <input type="checkbox" checked={checked} readOnly style={{ marginRight: '0.4em', accentColor: '#ff6900', verticalAlign: 'middle' }} />;
-    }
-    return <input type={type} />;
-  },
-};
 
 function ToolButton({ onClick, title, active, children }) {
   return (
@@ -97,7 +23,6 @@ function ToolButton({ onClick, title, active, children }) {
 }
 
 export default function NoteEditor({ note, onUpdate, onDelete, onArchive, onBack }) {
-  const [tab, setTab] = useState('write');
   const [title, setTitle] = useState(note?.title ?? '');
   const [body, setBody] = useState(note?.body ?? '');
   const saveTimer = useRef(null);
@@ -105,7 +30,6 @@ export default function NoteEditor({ note, onUpdate, onDelete, onArchive, onBack
   useEffect(() => {
     setTitle(note?.title ?? '');
     setBody(note?.body ?? '');
-    setTab('write');
   }, [note?.id]);
 
   const flush = useCallback((t, b) => {
@@ -173,16 +97,6 @@ export default function NoteEditor({ note, onUpdate, onDelete, onArchive, onBack
           <ToolButton title="Note color" onClick={cycleColor}>
             <Palette size={18} strokeWidth={1.8} />
           </ToolButton>
-          <ToolButton
-            title={tab === 'preview' ? 'Edit' : 'Preview'}
-            active={tab === 'preview'}
-            onClick={() => {
-              if (tab === 'write') flush(title, body);
-              setTab(tab === 'preview' ? 'write' : 'preview');
-            }}
-          >
-            {tab === 'preview' ? <Pencil size={18} strokeWidth={1.8} /> : <Eye size={18} strokeWidth={1.8} />}
-          </ToolButton>
           <ToolButton title="Archive" onClick={() => onArchive(note.id)}>
             <Archive size={18} strokeWidth={1.8} />
           </ToolButton>
@@ -194,41 +108,22 @@ export default function NoteEditor({ note, onUpdate, onDelete, onArchive, onBack
 
       {/* Content */}
       <div className="flex flex-1 flex-col overflow-hidden p-6 gap-3">
-        {tab === 'write' ? (
-          <>
-            <input
-              className="w-full bg-transparent text-3xl font-semibold outline-none placeholder:opacity-30 placeholder:font-normal"
-              style={{ color: 'var(--text-primary)' }}
-              aria-label="Note title"
-              placeholder="Title"
-              value={title}
-              onChange={handleTitle}
-            />
-            <textarea
-              className="flex-1 w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:opacity-30"
-              style={{ color: 'var(--text-primary)' }}
-              aria-label="Note body"
-              placeholder="Start typing… markdown supported"
-              value={body}
-              onChange={handleBody}
-            />
-          </>
-        ) : (
-          <div className="flex-1 overflow-y-auto">
-            {title && (
-              <h1 className="mb-4 text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                {title}
-              </h1>
-            )}
-            {body ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-                {body}
-              </ReactMarkdown>
-            ) : (
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Nothing to preview yet.</p>
-            )}
-          </div>
-        )}
+        <input
+          className="w-full bg-transparent text-3xl font-semibold outline-none placeholder:opacity-30 placeholder:font-normal"
+          style={{ color: 'var(--text-primary)' }}
+          aria-label="Note title"
+          placeholder="Title"
+          value={title}
+          onChange={handleTitle}
+        />
+        <textarea
+          className="flex-1 w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:opacity-30"
+          style={{ color: 'var(--text-primary)' }}
+          aria-label="Note body"
+          placeholder="Start typing… markdown supported"
+          value={body}
+          onChange={handleBody}
+        />
       </div>
     </div>
   );

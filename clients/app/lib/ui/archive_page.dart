@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../data/notes_repository.dart';
 import '../format.dart';
@@ -259,12 +258,12 @@ class _ArchivedNoteView extends StatelessWidget {
                       color: NotallyColors.textFaint, fontSize: 15),
                 )
               else
-                Markdown(
-                  data: note.body,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: EdgeInsets.zero,
-                  styleSheet: notallyMarkdownStyle(),
+                SelectableText(
+                  note.body,
+                  style: const TextStyle(
+                      color: NotallyColors.textPrimary,
+                      fontSize: 16,
+                      height: 1.5),
                 ),
             ],
           ),

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 /// Preset note background colors (hex, same format stored in the Note model).
 const kNoteColorHexes = [
@@ -163,51 +162,6 @@ ThemeData buildNotallyTheme() {
       thumbColor: WidgetStateProperty.all(const Color(0xFF444444)),
       thickness: WidgetStateProperty.all(8),
       radius: const Radius.circular(4),
-    ),
-  );
-}
-
-/// Markdown rendering styled for the dark theme (used by the editor preview).
-/// [colors] lets callers rendering on top of a note's own custom/gradient
-/// background (see [NoteTextColors]) swap in a readable tone set instead of
-/// the default dark-background tones.
-MarkdownStyleSheet notallyMarkdownStyle({NoteTextColors? colors}) {
-  final c = colors ?? NoteTextColors._onDark;
-  final body = TextStyle(color: c.primary, fontSize: 16, height: 1.5);
-  TextStyle heading(double size) => TextStyle(
-        color: c.bright,
-        fontSize: size,
-        fontWeight: FontWeight.w600,
-        height: 1.3,
-      );
-  return MarkdownStyleSheet(
-    p: body,
-    h1: heading(28),
-    h2: heading(23),
-    h3: heading(19),
-    h4: heading(16),
-    listBullet: body,
-    strong: TextStyle(color: c.bright, fontWeight: FontWeight.w700),
-    em: TextStyle(color: c.primary, fontStyle: FontStyle.italic),
-    a: const TextStyle(color: NotallyColors.accent),
-    code: const TextStyle(
-      color: NotallyColors.accent,
-      backgroundColor: Color(0xFF2A2A2A),
-      fontFamily: 'monospace',
-      fontSize: 14,
-    ),
-    codeblockDecoration: BoxDecoration(
-      color: NotallyColors.card,
-      borderRadius: BorderRadius.circular(8),
-    ),
-    codeblockPadding: const EdgeInsets.all(12),
-    blockquote: TextStyle(color: c.muted),
-    blockquoteDecoration: const BoxDecoration(
-      border: Border(left: BorderSide(color: NotallyColors.accent, width: 3)),
-    ),
-    blockquotePadding: const EdgeInsets.only(left: 12),
-    horizontalRuleDecoration: const BoxDecoration(
-      border: Border(top: BorderSide(color: NotallyColors.border)),
     ),
   );
 }

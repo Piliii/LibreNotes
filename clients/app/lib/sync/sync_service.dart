@@ -16,7 +16,12 @@ class SyncStatus {
   final SyncState state;
   final String? message;
   final DateTime? lastSyncedAt;
-  const SyncStatus(this.state, {this.message, this.lastSyncedAt});
+
+  /// True when the server speaks an API version this app can't, so the user
+  /// needs to update the app (or the server) rather than retry.
+  final bool versionMismatch;
+  const SyncStatus(this.state,
+      {this.message, this.lastSyncedAt, this.versionMismatch = false});
 }
 
 /// The server's version of a note that diverged from ours.
@@ -70,6 +75,14 @@ class SyncService {
   final ValueNotifier<SyncStatus> status =
       ValueNotifier(const SyncStatus(SyncState.notConfigured));
   final ValueNotifier<List<SyncConflict>> conflicts = ValueNotifier(const []);
+
+  /// Local edits not yet accepted by the server (excludes blank never-synced
+  /// notes, which are never pushed). Kept current on every edit and sync round.
+  final ValueNotifier<int> pending = ValueNotifier(0);
+
+  /// Last successful round this session; carried through offline/error states
+  /// so the UI can still say how stale the device is.
+  DateTime? _lastSyncedAt;
 
   static const _kBaseUrl = 'baseUrl';
   static const _kToken = 'token';
@@ -131,10 +144,20 @@ class SyncService {
   /// devices in ~1s instead of waiting out the poll. Debounced so a burst of
   /// keystrokes collapses into one push.
   void nudge() {
+    unawaited(refreshPending());
     _nudge?.cancel();
     _nudge = Timer(const Duration(milliseconds: 1200), () {
       if (isUnlocked && status.value.state != SyncState.syncing) syncNow();
     });
+  }
+
+  /// Recounts local edits waiting to be pushed.
+  Future<void> refreshPending() async {
+    final dirty = await _repo.dirtyNotes();
+    pending.value = dirty
+        .where((n) => !(n.rev == 0 &&
+            (n.deleted || (n.title.trim().isEmpty && n.body.trim().isEmpty))))
+        .length;
   }
 
   void dispose() {
@@ -231,7 +254,8 @@ class SyncService {
     if (api == null) return;
     final crypto = _repo.crypto;
 
-    status.value = const SyncStatus(SyncState.syncing, message: 'Syncing…');
+    status.value = SyncStatus(SyncState.syncing,
+        message: 'Syncing…', lastSyncedAt: _lastSyncedAt);
     try {
       // 1) Pull
       var lastSeq = int.tryParse(await _repo.kvGet(_kSeq) ?? '0') ?? 0;
@@ -314,19 +338,27 @@ class SyncService {
         }
       }
 
+      _lastSyncedAt = DateTime.now();
+      await refreshPending();
       status.value = SyncStatus(
         conflicts.value.isEmpty ? SyncState.ok : SyncState.error,
         message: conflicts.value.isEmpty
             ? null
             : '${conflicts.value.length} conflict(s) to resolve',
-        lastSyncedAt: DateTime.now(),
+        lastSyncedAt: _lastSyncedAt,
       );
     } on VersionMismatchException catch (e) {
-      status.value = SyncStatus(SyncState.error, message: _human(e));
+      await refreshPending();
+      status.value = SyncStatus(SyncState.error,
+          message: _human(e), lastSyncedAt: _lastSyncedAt, versionMismatch: true);
     } on SyncException catch (e) {
-      status.value = SyncStatus(SyncState.error, message: _human(e));
+      await refreshPending();
+      status.value = SyncStatus(SyncState.error,
+          message: _human(e), lastSyncedAt: _lastSyncedAt);
     } catch (e) {
-      status.value = SyncStatus(SyncState.offline, message: _human(e));
+      await refreshPending();
+      status.value = SyncStatus(SyncState.offline,
+          message: _human(e), lastSyncedAt: _lastSyncedAt);
     }
   }
 
@@ -484,8 +516,9 @@ class SyncService {
 
   void _removeConflict(String id) {
     conflicts.value = conflicts.value.where((c) => c.id != id).toList();
+    unawaited(refreshPending());
     if (conflicts.value.isEmpty && status.value.state == SyncState.error) {
-      status.value = SyncStatus(SyncState.ok, lastSyncedAt: DateTime.now());
+      status.value = SyncStatus(SyncState.ok, lastSyncedAt: _lastSyncedAt);
     }
   }
 

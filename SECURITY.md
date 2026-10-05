@@ -22,6 +22,9 @@ Please include:
   `clients/app/lib/sync/note_crypto.dart`) or is a more conventional bug
   (auth, injection, etc.).
 
+For what the encryption does and doesn't protect, see the
+[threat model](docs/security.md).
+
 ## Scope
 
 Particularly interested in reports affecting:
