@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:ui';
 
@@ -42,6 +43,12 @@ class _HomeScreenState extends State<HomeScreen> {
   _DesktopLayout _layout = _DesktopLayout.sidebar;
   bool _isNewNote = false;
   String _searchQuery = '';
+
+  /// FTS5 matches for [_ftsQuery]; null until computed, or when FTS can't
+  /// answer (short terms / no FTS5), in which case [_filtered] substring-scans.
+  Set<String>? _ftsIds;
+  String _ftsQuery = '';
+  StreamSubscription<void>? _notesChangedSub;
   late final TextEditingController _searchController;
   bool _mobileSearchActive = false;
   Set<String> _selectedIds = {};
@@ -94,6 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    _notesChangedSub = widget.repo.notesChanged.listen((_) => _runSearch());
     _loadPrefs();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -157,6 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!kIsWeb && Platform.isLinux) {
       HardwareKeyboard.instance.removeHandler(_handleKey);
     }
+    _notesChangedSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -286,8 +295,26 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _selectedIds = {});
   }
 
+  void _setQuery(String q) {
+    setState(() => _searchQuery = q);
+    _runSearch();
+  }
+
+  Future<void> _runSearch() async {
+    final q = _searchQuery;
+    if (q.isEmpty) return;
+    final ids = await widget.repo.searchIds(q);
+    if (!mounted || q != _searchQuery) return;
+    setState(() {
+      _ftsIds = ids;
+      _ftsQuery = q;
+    });
+  }
+
   List<NoteRow> _filtered(List<NoteRow> notes) {
     if (_searchQuery.isEmpty) return notes;
+    final ids = _ftsQuery == _searchQuery ? _ftsIds : null;
+    if (ids != null) return notes.where((n) => ids.contains(n.id)).toList();
     final q = _searchQuery.toLowerCase();
     return notes
         .where((n) =>
@@ -363,7 +390,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onNoteContextMenu: (note, pos) =>
                 _showDesktopContextMenu(context, note, pos),
             searchController: _searchController,
-            onSearchChanged: (q) => setState(() => _searchQuery = q),
+            onSearchChanged: _setQuery,
             hasQuery: _searchQuery.isNotEmpty,
           ),
         ),
@@ -572,8 +599,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 child: TextField(
                                   controller: _searchController,
                                   autofocus: true,
-                                  onChanged: (q) =>
-                                      setState(() => _searchQuery = q),
+                                  onChanged: _setQuery,
                                   style: const TextStyle(
                                       color: NotallyColors.textPrimary,
                                       fontSize: 22),

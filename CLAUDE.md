@@ -86,7 +86,6 @@ LibreNotes/
 │                            tag-push + manual-dispatch release build; docker.yml),
 │                            ISSUE_TEMPLATE/.
 ├── docker-compose.yml       Server deployment.
-├── HISTORY.md               Completed-work log (numbered items) moved out of CLAUDE.md.
 ├── HISTORY.md               Completed-work log (numbered items), split out of this file.
 ├── CHANGELOG.md, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md, LICENSE, README.md
 └── clients/app/             Flutter client (desktop + Android + web, one codebase).

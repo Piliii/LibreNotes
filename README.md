@@ -22,11 +22,17 @@
 <p align="center">
   <a href="https://librenotes.ayopili.com">Website</a> ·
   <a href="https://librenotes.ayopili.com/docs">Docs</a> ·
+  <a href="PROTOCOL.md">Protocol</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
 **Platforms:** Android (F-Droid, Google Play), Linux desktop, Windows desktop
+
+> **Pick one Android source and stay with it.** F-Droid and GitHub Release
+> APKs are signed by different keys, so an update from the other source
+> will not install over your current copy (uninstall + reinstall is the only
+> way to switch). The app shows a one-time note about this on the Sync page.
 
 ## Why LibreNotes?
 

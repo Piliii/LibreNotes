@@ -375,6 +375,13 @@ class SyncService {
     _removeConflict(id);
   }
 
+  /// Manual merge: store [title]/[body] as this device's version, then push
+  /// it over the server's current rev exactly like [keepLocal].
+  Future<void> keepMerged(String id, {required String title, required String body}) async {
+    await _repo.updateContent(id, title: title, body: body);
+    await keepLocal(id);
+  }
+
   Future<void> keepLocal(String id) async {
     final c = _conflictFor(id);
     final api = _api;

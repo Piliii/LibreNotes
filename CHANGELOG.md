@@ -6,6 +6,16 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Added
+- Conflict screen: a line-by-line diff of this device vs. the server, and a
+  "Merge manually" editor (starts from both versions with conflict markers).
+- Search is now backed by an in-memory SQLite FTS5 index (never written to
+  disk, so at-rest encryption is unaffected); falls back to plain substring
+  search if FTS5 is unavailable or the query has terms under 3 characters.
+- Android: a one-time, dismissible note on the Sync page explaining that
+  F-Droid and GitHub APKs are signed differently and can't update each other.
+- `PROTOCOL.md`: the wire protocol and encryption envelope, with test vectors.
+
 ## [1.5.7] — 2026-10-03
 
 ### Added

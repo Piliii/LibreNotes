@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../android/install_source.dart';
 import '../sync/sync_service.dart';
 import '../theme.dart';
 import 'conflicts_page.dart';
@@ -76,6 +78,7 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
           padding: const EdgeInsets.all(24),
           children: [
             _StatusBanner(service: widget.service),
+            const _InstallSourceNote(),
             const SizedBox(height: 20),
             _field(_url, 'Server URL', hint: 'http://<home-server>:8787'),
             const SizedBox(height: 14),
@@ -298,6 +301,82 @@ class _VersionLabel extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// One-time, dismissible heads-up about the F-Droid/GitHub signing split.
+/// Android only (renders nothing elsewhere); dismissal is remembered locally.
+class _InstallSourceNote extends StatefulWidget {
+  const _InstallSourceNote();
+
+  @override
+  State<_InstallSourceNote> createState() => _InstallSourceNoteState();
+}
+
+class _InstallSourceNoteState extends State<_InstallSourceNote> {
+  static const _dismissedKey = 'install_source_note_dismissed';
+  static const _storage = FlutterSecureStorage();
+  String? _note;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      if (await _storage.read(key: _dismissedKey) != null) return;
+      final source = await detectInstallSource();
+      if (source == null) return;
+      final note = signingSplitNote(source);
+      if (mounted && note != null) setState(() => _note = note);
+    } catch (_) {}
+  }
+
+  Future<void> _dismiss() async {
+    setState(() => _note = null);
+    try {
+      await _storage.write(key: _dismissedKey, value: '1');
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final note = _note;
+    if (note == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 10, 4, 10),
+        decoration: BoxDecoration(
+          color: NotallyColors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: NotallyColors.border),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.info_outline,
+                color: NotallyColors.accent, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(note,
+                  style: const TextStyle(
+                      color: NotallyColors.textMuted,
+                      fontSize: 12,
+                      height: 1.5)),
+            ),
+            IconButton(
+              tooltip: 'Dismiss',
+              icon: const Icon(Icons.close,
+                  size: 18, color: NotallyColors.textFaint),
+              onPressed: _dismiss,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

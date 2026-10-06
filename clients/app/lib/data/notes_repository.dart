@@ -95,6 +95,112 @@ class NotesRepository {
       );
     }
     _crypto = newCrypto;
+    await clearSearchIndex();
+  }
+
+  // ---- Local full-text search (FTS5) ---------------------------------------
+  //
+  // The notes table stores title/body only as ciphertext, so the FTS5 index
+  // must NOT be a regular table — that would put plaintext on disk and undo
+  // at-rest encryption. It's a TEMP virtual table instead (temp_store=MEMORY):
+  // it lives in RAM for the life of the connection, is rebuilt lazily from the
+  // decrypted notes after any change (local edit or sync pull), is cleared by
+  // [clearSearchIndex], and is never exported or logged. `trigram` keeps the
+  // old "substring, case-insensitive" semantics; terms under 3 chars (or an
+  // SQLite without FTS5/trigram) make [searchIds] return null so the caller
+  // falls back to its plain substring filter.
+
+  bool _searchStale = true;
+  bool? _ftsAvailable;
+  StreamSubscription<void>? _searchWatch;
+  final _changes = StreamController<void>.broadcast();
+
+  /// Marks the index stale *before* notifying listeners, so a listener that
+  /// immediately re-searches always sees a rebuild.
+  void _startSearchWatch() {
+    _searchWatch ??= _db
+        .tableUpdates(TableUpdateQuery.onTable(_db.notes))
+        .listen((_) {
+      _searchStale = true;
+      _changes.add(null);
+    });
+  }
+
+  Future<bool> _ensureSearchIndex() async {
+    if (_ftsAvailable == false) return false;
+    try {
+      if (_ftsAvailable == null) {
+        await _db.customStatement('PRAGMA temp_store = MEMORY');
+        await _db.customStatement(
+          'CREATE VIRTUAL TABLE IF NOT EXISTS temp.notes_fts USING fts5('
+          'id UNINDEXED, title, body, tokenize = "trigram")',
+        );
+        _startSearchWatch();
+        _ftsAvailable = true;
+      }
+      if (_searchStale) {
+        _searchStale = false; // an update mid-rebuild flips it back to true
+        final rows = await (_db.select(_db.notes)
+              ..where((t) => t.deleted.equals(false)))
+            .get();
+        final notes = await _decryptAll(rows);
+        await _db.transaction(() async {
+          await _db.customStatement('DELETE FROM temp.notes_fts');
+          for (final n in notes) {
+            await _db.customStatement(
+              'INSERT INTO temp.notes_fts(id, title, body) VALUES (?, ?, ?)',
+              [n.id, n.title, n.body],
+            );
+          }
+        });
+      }
+      return true;
+    } catch (_) {
+      _ftsAvailable = false;
+      return false;
+    }
+  }
+
+  /// Ids of non-deleted notes whose title/body contain every word of [query]
+  /// (case-insensitive substring). Null means "can't answer with FTS" — use a
+  /// plain filter instead.
+  Future<Set<String>?> searchIds(String query) async {
+    final terms = query.trim().split(RegExp(r'\s+')).where((t) => t.isNotEmpty);
+    if (terms.isEmpty || terms.any((t) => t.runes.length < 3)) return null;
+    // Drift delivers table-update events asynchronously; let one pending
+    // write's notification land so the stale flag reflects it.
+    await Future<void>.delayed(Duration.zero);
+    if (!await _ensureSearchIndex()) return null;
+    // Each term is a quoted phrase ("" escapes a quote), so user input can't
+    // inject FTS syntax.
+    final match =
+        terms.map((t) => '"${t.replaceAll('"', '""')}"').join(' AND ');
+    try {
+      final rows = await _db.customSelect(
+        'SELECT id FROM temp.notes_fts WHERE notes_fts MATCH ?',
+        variables: [Variable<String>(match)],
+      ).get();
+      return rows.map((r) => r.read<String>('id')).toSet();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Empties the in-memory index (it rebuilds on the next search). Called when
+  /// the active key changes; call it on any future lock/logout too.
+  Future<void> clearSearchIndex() async {
+    _searchStale = true;
+    if (_ftsAvailable == true) {
+      try {
+        await _db.customStatement('DELETE FROM temp.notes_fts');
+      } catch (_) {}
+    }
+  }
+
+  /// Stream that ticks whenever notes change, so search results can refresh.
+  Stream<void> get notesChanged {
+    _startSearchWatch();
+    return _changes.stream;
   }
 
   static bool _bytesEqual(List<int> a, List<int> b) {

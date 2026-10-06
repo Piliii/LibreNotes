@@ -27,7 +27,8 @@ For what the encryption does and doesn't protect, see the
 
 ## Scope
 
-Particularly interested in reports affecting:
+Particularly interested in reports affecting (the exact wire protocol and
+encryption envelope are documented in [PROTOCOL.md](PROTOCOL.md)):
 
 - **Confidentiality of note content** — anything that lets the server, a
   network observer, or another device read plaintext it shouldn't.

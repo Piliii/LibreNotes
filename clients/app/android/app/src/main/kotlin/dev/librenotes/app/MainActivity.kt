@@ -27,6 +27,11 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         shareChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, shareChannelName)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dev.librenotes.app/install")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "getInstallerPackageName") result.success(installerPackageName())
+                else result.notImplemented()
+            }
         shareChannel?.setMethodCallHandler { call, result ->
             if (call.method == "getInitialSharedText") {
                 result.success(pendingSharedText)
@@ -44,6 +49,17 @@ class MainActivity : FlutterActivity() {
         if (text != null) {
             shareChannel?.invokeMethod("onSharedText", text)
         }
+    }
+
+    private fun installerPackageName(): String? = try {
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            packageManager.getInstallSourceInfo(packageName).installingPackageName
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getInstallerPackageName(packageName)
+        }
+    } catch (e: Exception) {
+        null
     }
 
     private fun extractSharedText(intent: Intent?): String? {

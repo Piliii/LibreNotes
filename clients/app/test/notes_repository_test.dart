@@ -169,4 +169,43 @@ void main() {
       expect((await repo.getNote(id))!.purged, isTrue);
     });
   });
+
+  group('searchIds (in-memory FTS5)', () {
+    test('matches substrings case-insensitively across title and body, ANDs terms',
+        () async {
+      final a = await repo.createNote();
+      await repo.updateContent(a, title: 'Grocery List', body: 'buy oatmeal');
+      final b = await repo.createNote();
+      await repo.updateContent(b, title: 'Work', body: 'quarterly OATMEAL report');
+
+      expect(await repo.searchIds('oatmeal'), {a, b});
+      expect(await repo.searchIds('GROCERY'), {a});
+      expect(await repo.searchIds('atme'), {a, b}); // mid-word, like substring
+      expect(await repo.searchIds('oatmeal report'), {b});
+      expect(await repo.searchIds('nope'), isEmpty);
+      // FTS syntax in user input is quoted, not interpreted.
+      expect(await repo.searchIds('oat"x'), isEmpty);
+    });
+
+    test('short terms defer to the caller (null)', () async {
+      expect(await repo.searchIds('ab'), isNull);
+      expect(await repo.searchIds('   '), isNull);
+    });
+
+    test('index follows edits, trashing and clearSearchIndex', () async {
+      final id = await repo.createNote();
+      await repo.updateContent(id, body: 'alpha');
+      expect(await repo.searchIds('alpha'), {id});
+
+      await repo.updateContent(id, body: 'bravo');
+      expect(await repo.searchIds('alpha'), isEmpty);
+      expect(await repo.searchIds('bravo'), {id});
+
+      await repo.clearSearchIndex();
+      expect(await repo.searchIds('bravo'), {id}); // rebuilt on demand
+
+      await repo.deleteNote(id);
+      expect(await repo.searchIds('bravo'), isEmpty);
+    });
+  });
 }

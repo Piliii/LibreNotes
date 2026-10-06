@@ -12,3 +12,5 @@ Features:
 The sync server is a single compiled binary you run on a home server. It binds to your LAN only. For access away from home, add devices and the server to a Tailscale or WireGuard mesh — no server changes needed.
 
 All source code is AGPLv3. No proprietary dependencies, no Firebase, no Google Play Services.
+
+Note: F-Droid and GitHub APKs are signed by different keys, so updates from the other source won't install over this one. Pick one source and stay with it.
