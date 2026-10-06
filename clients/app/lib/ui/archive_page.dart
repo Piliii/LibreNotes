@@ -258,13 +258,7 @@ class _ArchivedNoteView extends StatelessWidget {
                       color: NotallyColors.textFaint, fontSize: 15),
                 )
               else
-                SelectableText(
-                  note.body,
-                  style: const TextStyle(
-                      color: NotallyColors.textPrimary,
-                      fontSize: 16,
-                      height: 1.5),
-                ),
+                SelectableText(note.body, style: kNoteBodyStyle),
             ],
           ),
         ),

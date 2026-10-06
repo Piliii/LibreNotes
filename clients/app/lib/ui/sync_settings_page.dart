@@ -175,10 +175,7 @@ class _StatusBanner extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 1),
-                  child: Icon(icon, color: color, size: 20),
-                ),
+                Icon(icon, color: color, size: 20),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -187,12 +184,14 @@ class _StatusBanner extends StatelessWidget {
                       Text(text,
                           style: const TextStyle(
                               color: NotallyColors.textPrimary, fontSize: 14)),
-                      for (final d in details)
+                      if (details.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
-                          child: Text(d,
+                          child: Text(details.join('\n'),
                               style: const TextStyle(
-                                  color: NotallyColors.textFaint, fontSize: 12)),
+                                  color: NotallyColors.textFaint,
+                                  fontSize: 12,
+                                  height: 1.5)),
                         ),
                     ],
                   ),
@@ -221,41 +220,36 @@ class _StatusBanner extends StatelessWidget {
             'Offline — can’t reach the server. Your notes are safe on this '
                 'device and will sync when it’s back.');
       case SyncState.error:
-        if (s.versionMismatch) {
-          return (Icons.system_update_alt, NotallyColors.accent,
-              s.message ?? 'App and server versions don’t match.');
-        }
         return (Icons.error_outline, NotallyColors.accent,
             s.message ?? 'Something went wrong.');
     }
   }
 
-  /// Secondary lines: last-synced time, pending edits, and the raw reason
-  /// when the headline is a friendly summary of it.
+  /// Secondary lines: last-synced time and pending edits.
   static List<String> _details(SyncStatus s, int pending) {
     if (s.state == SyncState.notConfigured || s.state == SyncState.locked) {
       return const [];
     }
     return [
+      if (s.state == SyncState.offline && s.message != null) s.message!,
       if (s.lastSyncedAt != null)
         'Last synced ${_ago(s.lastSyncedAt!)}'
       else if (s.state != SyncState.syncing)
         'Not synced yet this session',
       if (pending > 0)
         '$pending change${pending == 1 ? '' : 's'} waiting to sync',
-      if (s.state == SyncState.offline && s.message != null) s.message!,
     ];
   }
 
   static String _ago(DateTime d) {
-    String two(int v) => v.toString().padLeft(2, '0');
     final diff = DateTime.now().difference(d);
     if (diff.inSeconds < 30) return 'just now';
     if (diff.inMinutes < 1) return '${diff.inSeconds}s ago';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago (${two(d.hour)}:${two(d.minute)})';
-    return '${d.year}-${two(d.month)}-${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
   }
+
 }
 
 class _ConflictsLink extends StatelessWidget {

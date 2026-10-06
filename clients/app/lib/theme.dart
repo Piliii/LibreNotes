@@ -165,3 +165,7 @@ ThemeData buildNotallyTheme() {
     ),
   );
 }
+
+/// Read-only note body text (archive/trash previews).
+const kNoteBodyStyle =
+    TextStyle(color: NotallyColors.textPrimary, fontSize: 16, height: 1.5);

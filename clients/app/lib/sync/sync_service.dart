@@ -16,12 +16,7 @@ class SyncStatus {
   final SyncState state;
   final String? message;
   final DateTime? lastSyncedAt;
-
-  /// True when the server speaks an API version this app can't, so the user
-  /// needs to update the app (or the server) rather than retry.
-  final bool versionMismatch;
-  const SyncStatus(this.state,
-      {this.message, this.lastSyncedAt, this.versionMismatch = false});
+  const SyncStatus(this.state, {this.message, this.lastSyncedAt});
 }
 
 /// The server's version of a note that diverged from ours.
@@ -79,10 +74,6 @@ class SyncService {
   /// Local edits not yet accepted by the server (excludes blank never-synced
   /// notes, which are never pushed). Kept current on every edit and sync round.
   final ValueNotifier<int> pending = ValueNotifier(0);
-
-  /// Last successful round this session; carried through offline/error states
-  /// so the UI can still say how stale the device is.
-  DateTime? _lastSyncedAt;
 
   static const _kBaseUrl = 'baseUrl';
   static const _kToken = 'token';
@@ -151,13 +142,14 @@ class SyncService {
     });
   }
 
+  static bool _isBlank(NoteRow n) =>
+      n.title.trim().isEmpty && n.body.trim().isEmpty;
+
   /// Recounts local edits waiting to be pushed.
   Future<void> refreshPending() async {
     final dirty = await _repo.dirtyNotes();
-    pending.value = dirty
-        .where((n) => !(n.rev == 0 &&
-            (n.deleted || (n.title.trim().isEmpty && n.body.trim().isEmpty))))
-        .length;
+    pending.value =
+        dirty.where((n) => !(n.rev == 0 && (n.deleted || _isBlank(n)))).length;
   }
 
   void dispose() {
@@ -254,8 +246,10 @@ class SyncService {
     if (api == null) return;
     final crypto = _repo.crypto;
 
-    status.value = SyncStatus(SyncState.syncing,
-        message: 'Syncing…', lastSyncedAt: _lastSyncedAt);
+    // Carried through offline/error states so the UI can say how stale we are.
+    final last = status.value.lastSyncedAt;
+    status.value =
+        SyncStatus(SyncState.syncing, message: 'Syncing…', lastSyncedAt: last);
     try {
       // 1) Pull
       var lastSeq = int.tryParse(await _repo.kvGet(_kSeq) ?? '0') ?? 0;
@@ -307,10 +301,7 @@ class SyncService {
           continue;
         }
 
-        if (!note.deleted &&
-            note.rev == 0 &&
-            note.title.trim().isEmpty &&
-            note.body.trim().isEmpty) {
+        if (!note.deleted && note.rev == 0 && _isBlank(note)) {
           // Never-synced blank note (e.g. the auto-opened editor on startup) —
           // don't push it until it actually has content.
           continue;
@@ -338,27 +329,24 @@ class SyncService {
         }
       }
 
-      _lastSyncedAt = DateTime.now();
-      await refreshPending();
       status.value = SyncStatus(
         conflicts.value.isEmpty ? SyncState.ok : SyncState.error,
         message: conflicts.value.isEmpty
             ? null
             : '${conflicts.value.length} conflict(s) to resolve',
-        lastSyncedAt: _lastSyncedAt,
+        lastSyncedAt: DateTime.now(),
       );
     } on VersionMismatchException catch (e) {
-      await refreshPending();
       status.value = SyncStatus(SyncState.error,
-          message: _human(e), lastSyncedAt: _lastSyncedAt, versionMismatch: true);
+          message: _human(e), lastSyncedAt: status.value.lastSyncedAt);
     } on SyncException catch (e) {
-      await refreshPending();
       status.value = SyncStatus(SyncState.error,
-          message: _human(e), lastSyncedAt: _lastSyncedAt);
+          message: _human(e), lastSyncedAt: status.value.lastSyncedAt);
     } catch (e) {
-      await refreshPending();
       status.value = SyncStatus(SyncState.offline,
-          message: _human(e), lastSyncedAt: _lastSyncedAt);
+          message: _human(e), lastSyncedAt: status.value.lastSyncedAt);
+    } finally {
+      await refreshPending();
     }
   }
 
@@ -518,7 +506,8 @@ class SyncService {
     conflicts.value = conflicts.value.where((c) => c.id != id).toList();
     unawaited(refreshPending());
     if (conflicts.value.isEmpty && status.value.state == SyncState.error) {
-      status.value = SyncStatus(SyncState.ok, lastSyncedAt: _lastSyncedAt);
+      status.value = SyncStatus(SyncState.ok,
+          lastSyncedAt: status.value.lastSyncedAt);
     }
   }
 

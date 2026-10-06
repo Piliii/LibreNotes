@@ -183,7 +183,6 @@ void main() {
 
       expect(dev.sync.status.value.state, SyncState.error);
       expect(dev.sync.status.value.message, contains('Server API v2'));
-      expect(dev.sync.status.value.versionMismatch, isTrue);
       // Still tells the user how stale the device is.
       expect(dev.sync.status.value.lastSyncedAt, isNotNull);
     });
