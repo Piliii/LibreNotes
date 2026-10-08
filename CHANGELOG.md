@@ -7,6 +7,8 @@ plain semver-ish tags (`vX.Y.Z`).
 ## [Unreleased]
 
 ### Added
+- Android: adaptive launcher icon with a monochrome layer, so themed icons
+  (Android 13+, Lawnchair "tint with accent color") now work.
 - Conflict screen: a line-by-line diff of this device vs. the server, and a
   "Merge manually" editor (starts from both versions with conflict markers).
 - Search is now backed by an in-memory SQLite FTS5 index (never written to

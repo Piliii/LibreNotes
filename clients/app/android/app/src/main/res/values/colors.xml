@@ -2,4 +2,5 @@
 <resources>
     <!-- Matches NotallyColors.background in lib/theme.dart. -->
     <color name="launch_background">#1A1A1A</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>
