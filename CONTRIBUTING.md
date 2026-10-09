@@ -12,7 +12,7 @@ philosophy — see [`CLAUDE.md`](CLAUDE.md) for the product shape, sync model,
 and encryption design — and changes that conflict with it won't be merged
 regardless of code quality. In particular:
 
-- **No Electron, no Windows client.** Flutter only, across website/Linux/Android.
+- **No Electron.** Flutter only, across website/Linux/Android.
 - **The server must stay E2EE-blind.** No feature should require the server to
   see plaintext note content.
 - **No CRDTs / auto-merge.** Conflicts are surfaced to the user, who picks a
