@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="https://f-droid.org/packages/dev.librenotes.app/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="60"/></a>
-  <a href="https://play.google.com/store/apps/details?id=dev.librenotes.app"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="60"/></a>
+  <!--   <a href="https://play.google.com/store/apps/details?id=dev.librenotes.app"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="60"/></a>-->
 </p>
 
 <p align="center">
@@ -27,12 +27,25 @@
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
-**Platforms:** Android (F-Droid, Google Play), Linux desktop, Windows desktop
+**Platforms:** Android (F-Droid), Linux desktop, Windows desktop
 
 > **Pick one Android source and stay with it.** F-Droid and GitHub Release
 > APKs are signed by different keys, so an update from the other source
 > will not install over your current copy (uninstall + reinstall is the only
 > way to switch). The app shows a one-time note about this on the Sync page.
+
+### Install on Linux
+
+Grab a package from the [latest release](https://github.com/Piliii/LibreNotes/releases/latest):
+
+| Distro | Package |
+| --- | --- |
+| Arch | [`librenotes-bin`](https://aur.archlinux.org/packages/librenotes-bin) on the AUR: `yay -S librenotes-bin` |
+| Debian / Ubuntu | `.deb`: `sudo apt install ./LibreNotes-<version>-amd64.deb` |
+| Fedora / openSUSE | `.rpm`: `sudo dnf install ./LibreNotes-<version>-x86_64.rpm` |
+| Any | `.AppImage` (`chmod +x`, then run) or the `.tar.gz` bundle |
+
+`.deb` and `.rpm` also come in arm64 / aarch64.
 
 ## Why LibreNotes?
 
