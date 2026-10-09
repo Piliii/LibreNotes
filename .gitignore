@@ -37,3 +37,6 @@ memory/
 .DS_Store
 
 notally.sqlite
+# local scratch todo
+todo.md
+todo-images/
