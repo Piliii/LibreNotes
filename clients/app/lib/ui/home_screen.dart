@@ -51,6 +51,8 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription<void>? _notesChangedSub;
   late final TextEditingController _searchController;
   bool _mobileSearchActive = false;
+  bool _mobileListView = false;
+  bool _listToggled = false; // true once the user flips the layout
   Set<String> _selectedIds = {};
   String? _lastSelectedId;
 
@@ -184,8 +186,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final layoutStr = await widget.repo.kvGet('pref.layout');
     final widthStr = await widget.repo.kvGet('pref.sidebarWidth');
     final tabOrderStr = await widget.repo.kvGet('pref.tabOrder');
+    final listView = await widget.repo.kvGet('pref.mobileListView');
     if (!mounted) return;
     setState(() {
+      _mobileListView = listView == '1';
       if (layoutStr == 'tabs') _layout = _DesktopLayout.tabs;
       if (widthStr != null) _sidebarWidth = double.tryParse(widthStr) ?? 280;
       if (tabOrderStr != null && tabOrderStr.isNotEmpty) {
@@ -544,16 +548,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: NotallyColors.background,
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: NotallyColors.accent,
-        foregroundColor: Colors.white,
-        onPressed: () async {
-          final id = await widget.repo.createNote();
-          if (!mounted) return;
-          _openMobile(id);
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('New note'),
+      floatingActionButton: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutBack,
+        builder: (_, t, child) => Transform.scale(scale: t, child: child),
+        child: FloatingActionButton.extended(
+          backgroundColor: NotallyColors.accent,
+          foregroundColor: Colors.white,
+          onPressed: () async {
+            final id = await widget.repo.createNote();
+            if (!mounted) return;
+            _openMobile(id);
+          },
+          icon: const Icon(Icons.add),
+          label: const Text('New note'),
+        ),
       ),
       body: SafeArea(
         child: RefreshIndicator(
@@ -663,6 +673,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onPressed: () =>
                                     setState(() => _mobileSearchActive = true),
                               ),
+                              IconButton(
+                                icon: Icon(_mobileListView
+                                    ? Icons.grid_view
+                                    : Icons.view_agenda_outlined),
+                                tooltip:
+                                    _mobileListView ? 'Grid view' : 'List view',
+                                color: NotallyColors.textFaint,
+                                iconSize: 22,
+                                onPressed: () {
+                                  setState(() {
+                                    _mobileListView = !_mobileListView;
+                                    _listToggled = true;
+                                  });
+                                  widget.repo.kvSet('pref.mobileListView',
+                                      _mobileListView ? '1' : '0');
+                                },
+                              ),
                               _MobileMoreButton(
                                   repo: widget.repo,
                                   onChanged: widget.sync.nudge),
@@ -728,9 +755,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _masonryGrid(List<NoteRow> notes) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final cardWidth = (constraints.maxWidth - 14) / 2;
-        final left = [for (var i = 0; i < notes.length; i += 2) notes[i]];
-        final right = [for (var i = 1; i < notes.length; i += 2) notes[i]];
+        final cols = _mobileListView ? 1 : 2;
+        final cardWidth = (constraints.maxWidth - 14 * (cols - 1)) / cols;
 
         Widget column(List<NoteRow> items) => SizedBox(
               width: cardWidth,
@@ -760,6 +786,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         },
                         child: _NoteCard(
                           note: note,
+                          index: notes.indexOf(note),
+                          listMode: _mobileListView,
+                          fillOnMount: _listToggled,
                           onTap: () => _openMobile(note.id),
                           onLongPress: () => _showMobileNoteActions(note),
                         ),
@@ -772,9 +801,10 @@ class _HomeScreenState extends State<HomeScreen> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            column(left),
-            const SizedBox(width: 14),
-            column(right),
+            for (var c = 0; c < cols; c++) ...[
+              if (c > 0) const SizedBox(width: 14),
+              column([for (var i = c; i < notes.length; i += cols) notes[i]]),
+            ],
           ],
         );
       },
@@ -1743,9 +1773,15 @@ class _NoteCard extends StatefulWidget {
     required this.note,
     required this.onTap,
     this.onLongPress,
+    this.index = 0,
+    this.listMode = false,
+    this.fillOnMount = false,
   });
 
   final NoteRow note;
+  final int index;
+  final bool listMode;
+  final bool fillOnMount;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
@@ -1754,28 +1790,50 @@ class _NoteCard extends StatefulWidget {
 }
 
 class _NoteCardState extends State<_NoteCard>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _enterCtrl;
+  // Grid -> list: the card starts at half width and fills out to full width.
+  late final AnimationController _fillCtrl;
   late final Animation<double> _opacity;
   late final Animation<Offset> _slide;
+  bool _pressed = false;
 
   @override
   void initState() {
     super.initState();
+    // Stagger the first screenful: 40 ms per card, capped at 8 cards.
+    final delayMs = widget.index.clamp(0, 8) * 40;
+    final totalMs = 380 + delayMs;
     _enterCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 380),
+      duration: Duration(milliseconds: totalMs),
     );
-    _opacity = CurvedAnimation(parent: _enterCtrl, curve: Curves.easeOut);
+    _opacity = CurvedAnimation(
+        parent: _enterCtrl,
+        curve: Interval(delayMs / totalMs, 1, curve: Curves.easeOut));
     _slide = Tween<Offset>(
       begin: const Offset(0, 0.06),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _enterCtrl, curve: Curves.easeOutCubic));
+    ).animate(CurvedAnimation(
+        parent: _enterCtrl,
+        curve: Interval(delayMs / totalMs, 1, curve: Curves.easeOutCubic)));
     _enterCtrl.forward();
+    _fillCtrl = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 380),
+        value: 1);
+    if (widget.listMode && widget.fillOnMount) _fillCtrl.forward(from: 0);
+  }
+
+  @override
+  void didUpdateWidget(_NoteCard old) {
+    super.didUpdateWidget(old);
+    if (widget.listMode && !old.listMode) _fillCtrl.forward(from: 0);
   }
 
   @override
   void dispose() {
+    _fillCtrl.dispose();
     _enterCtrl.dispose();
     super.dispose();
   }
@@ -1803,11 +1861,24 @@ class _NoteCardState extends State<_NoteCard>
       shadowTint = base;
     }
 
-    return FadeTransition(
+    return SizeTransition(
+      axis: Axis.horizontal,
+      axisAlignment: -1,
+      sizeFactor: Tween<double>(begin: 0.5, end: 1)
+          .animate(CurvedAnimation(parent: _fillCtrl, curve: Curves.easeOutCubic)),
+      child: FadeTransition(
       opacity: _opacity,
       child: SlideTransition(
         position: _slide,
-        child: AnimatedContainer(
+        child: Listener(
+          onPointerDown: (_) => setState(() => _pressed = true),
+          onPointerUp: (_) => setState(() => _pressed = false),
+          onPointerCancel: (_) => setState(() => _pressed = false),
+          child: AnimatedScale(
+            scale: _pressed ? 0.97 : 1,
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            child: AnimatedContainer(
       duration: const Duration(milliseconds: 280),
       curve: Curves.easeOut,
       width: double.infinity,
@@ -1907,11 +1978,21 @@ class _NoteCardState extends State<_NoteCard>
                         height: 1.45),
                   ),
                   const SizedBox(height: 10),
-                  Text(
-                    relativeTime(widget.note.updatedAt),
-                    style: TextStyle(
-                        color: textColors.faint.withValues(alpha: 0.75),
-                        fontSize: 11),
+                  Row(
+                    children: [
+                      if (widget.note.expiresAt != null) ...[
+                        Icon(Icons.hourglass_bottom,
+                            size: 12,
+                            color: textColors.faint.withValues(alpha: 0.75)),
+                        const SizedBox(width: 4),
+                      ],
+                      Text(
+                        relativeTime(widget.note.updatedAt),
+                        style: TextStyle(
+                            color: textColors.faint.withValues(alpha: 0.75),
+                            fontSize: 11),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1919,7 +2000,10 @@ class _NoteCardState extends State<_NoteCard>
           ),
         ),
       ),
+          ),
         ),
+        ),
+      ),
       ),
     );
   }

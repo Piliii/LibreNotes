@@ -7,6 +7,12 @@ plain semver-ish tags (`vX.Y.Z`).
 ## [Unreleased]
 
 ### Added
+- Android: note cards stagger in, shrink slightly on press, and fill out to full
+  width when switching to list view; the New note button pops in.
+- Android: list view option alongside the grid (toggle in the Notes header,
+  remembered across launches).
+- Self-destructing notes show an hourglass icon next to the timestamp on their
+  card.
 - Android: adaptive launcher icon with a monochrome layer, so themed icons
   (Android 13+, Lawnchair "tint with accent color") now work.
 - Conflict screen: a line-by-line diff of this device vs. the server, and a
