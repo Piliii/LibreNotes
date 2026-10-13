@@ -1,4 +1,5 @@
-import 'dart:io' show Platform;
+import 'dart:async';
+import 'dart:io' show Platform, ProcessSignal;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../data/notes_repository.dart';
 import '../theme.dart';
+import 'global_shortcut_portal.dart';
 
 /// Global-hotkey quick capture for Linux and Windows desktop: Ctrl+Alt+N from anywhere
 /// (even with LibreNotes unfocused or minimized) shrinks the app window into
@@ -16,6 +18,10 @@ import '../theme.dart';
 ///
 /// Requires the `keybinder-3.0` system library on Linux (the hotkey_manager
 /// plugin's runtime dependency for registering an OS-wide shortcut).
+///
+/// On Wayland the shortcut is registered through the xdg-desktop-portal
+/// GlobalShortcuts portal ([GlobalShortcutPortal]); the desktop owns and can
+/// rebind it. What follows is the fallback path when no portal is available.
 ///
 /// **Known limitation:** `keybinder-3.0` registers the shortcut via X11's
 /// `XGrabKey`, which only works when the app runs under X11 or XWayland. On
@@ -27,8 +33,12 @@ import '../theme.dart';
 /// the correct fix is the `xdg-desktop-portal` GlobalShortcuts portal, which
 /// is a materially different (and compositor-support-dependent) integration,
 /// not a hotkey_manager option. Until that's built, this feature only works
-/// out of the box on X11 sessions; Wayland users can work around it by
-/// launching LibreNotes with `GDK_BACKEND=x11` (forces XWayland).
+/// out of the box on X11 sessions. On Wayland, bind any key in the compositor/
+/// DE settings to the command `pkill -USR1 -x librenotes`; SIGUSR1 opens the
+/// capture box exactly like the hotkey. Separately, the Linux runner
+/// (`linux/runner/main.cc`) sets `GDK_BACKEND=x11` itself when `DISPLAY` is
+/// available (XWayland), unless the user already set `GDK_BACKEND`, which
+/// sidesteps native-Wayland key-handling bugs but does not make the grab work.
 class QuickCaptureController {
   QuickCaptureController(this._repo, this._navigatorKey);
 
@@ -42,6 +52,8 @@ class QuickCaptureController {
     scope: HotKeyScope.system,
   );
 
+  StreamSubscription<ProcessSignal>? _signalSub;
+  GlobalShortcutPortal? _portal;
   bool _busy = false;
   Rect? _savedBounds;
   bool _wasVisible = true;
@@ -52,12 +64,33 @@ class QuickCaptureController {
   Future<void> init() async {
     if (!_supported) return;
     await windowManager.ensureInitialized();
+    // Wayland: the portal is the only route to a real global shortcut.
+    if (Platform.isLinux &&
+        Platform.environment['XDG_SESSION_TYPE'] == 'wayland') {
+      final portal = GlobalShortcutPortal(
+        id: 'quick-capture',
+        description: 'LibreNotes: quick capture note',
+        preferredTrigger: 'CTRL+ALT+n',
+        onActivated: _trigger,
+      );
+      if (await portal.start()) _portal = portal;
+    }
     await hotKeyManager.unregisterAll(); // guards against stale hot-reload state
-    await hotKeyManager.register(_hotKey, keyDownHandler: (_) => _trigger());
+    if (_portal == null) {
+      await hotKeyManager.register(_hotKey, keyDownHandler: (_) => _trigger());
+    }
+    // Wayland compositors never deliver global keys to X11/XWayland clients,
+    // so the hotkey above can't fire there. Instead, let the compositor / DE
+    // own the shortcut and have it run `pkill -USR1 -x librenotes`.
+    if (Platform.isLinux) {
+      _signalSub = ProcessSignal.sigusr1.watch().listen((_) => _trigger());
+    }
   }
 
   Future<void> teardown() async {
     if (!_supported) return;
+    await _signalSub?.cancel();
+    await _portal?.stop();
     await hotKeyManager.unregister(_hotKey);
   }
 
@@ -66,20 +99,27 @@ class QuickCaptureController {
     _busy = true;
     _wasVisible = await windowManager.isVisible();
     _savedBounds = await windowManager.getBounds();
-    await windowManager.setAlwaysOnTop(true);
-    await windowManager.setSize(_captureSize);
-    await windowManager.center();
-    await windowManager.show();
-    await windowManager.focus();
-    await _navigatorKey.currentState?.push(
-      MaterialPageRoute<void>(
-        fullscreenDialog: true,
-        builder: (_) => QuickCaptureScreen(
+    // Put the capture screen on top *before* resizing/showing, so the window
+    // never flashes the full app (squeezed into the small size) first.
+    final pushed = _navigatorKey.currentState?.push(
+      PageRouteBuilder<void>(
+        transitionDuration: Duration.zero, // no slide-in while resizing
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => QuickCaptureScreen(
           onSubmit: _submit,
           onCancel: _cancel,
         ),
       ),
     );
+    // A hidden window may not render frames, so don't wait on it forever.
+    await WidgetsBinding.instance.endOfFrame
+        .timeout(const Duration(milliseconds: 200), onTimeout: () {});
+    await windowManager.setAlwaysOnTop(true);
+    await windowManager.setSize(_captureSize);
+    await windowManager.center();
+    await windowManager.show();
+    await windowManager.focus();
+    await pushed;
     _busy = false;
   }
 

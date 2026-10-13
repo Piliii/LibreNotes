@@ -6,6 +6,8 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-10-13
+
 ### Added
 - Android: note cards stagger in, shrink slightly on press, and fill out to full
   width when switching to list view; the New note button pops in.
@@ -23,6 +25,37 @@ plain semver-ish tags (`vX.Y.Z`).
 - Android: a one-time, dismissible note on the Sync page explaining that
   F-Droid and GitHub APKs are signed differently and can't update each other.
 - `PROTOCOL.md`: the wire protocol and encryption envelope, with test vectors.
+- Markdown: the editor now styles markdown as you type: headings, bold,
+  italic, strikethrough, `inline code`, fenced code blocks, blockquotes,
+  bullet / numbered / task lists, links, images, tables (monospace) and
+  `==highlights==`. The text itself is never altered, so the cursor and
+  selection stay exact.
+- Markdown: the Preview button is back in the editor toolbar and renders
+  standard GitHub-flavored markdown, including task-list checkboxes and tables.
+- Pressing Enter on a list line continues the list (`- `, `1. `, `- [ ] `);
+  Enter on an empty item ends it.
+- Linux (Wayland): quick capture now works as a real global shortcut through
+  the xdg-desktop-portal GlobalShortcuts portal (Ctrl+Alt+N by default,
+  rebindable in your desktop's shortcut settings). The capture box no longer
+  flashes the full app before shrinking. `pkill -USR1 -x librenotes` also
+  opens it, for desktops without the portal.
+
+### Changed
+- Note cards and the sidebar show a clean preview with markdown syntax
+  stripped.
+- Linux: the app prefers XWayland (`GDK_BACKEND=x11`) when it is available,
+  which avoids Flutter's native-Wayland keyboard desyncs; set `GDK_BACKEND`
+  yourself to override.
+- Linux: the keyboard state is re-synced when the window regains focus.
+
+### Security
+- The markdown preview never loads remote images (so opening a note can't
+  contact a third-party server) and only opens `http`, `https` and `mailto`
+  links.
+
+### Coming later
+- **Folders** are not part of this release; they are planned for a later
+  update (v1.7.0).
 
 ## [1.5.7] — 2026-10-03
 

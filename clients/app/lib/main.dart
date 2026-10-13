@@ -128,12 +128,24 @@ class NotallyApp extends StatefulWidget {
   State<NotallyApp> createState() => _NotallyAppState();
 }
 
-class _NotallyAppState extends State<NotallyApp> {
+class _NotallyAppState extends State<NotallyApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
     if (!kIsWeb && Platform.isLinux) {
       HardwareKeyboard.instance.addHandler(_handleKey);
+      WidgetsBinding.instance.addObserver(this);
+    }
+  }
+
+  // Keys pressed/released while the window was unfocused (e.g. the global
+  // quick-capture hotkey) leave Flutter's pressed-key state out of step with
+  // the OS; in debug builds the resulting assertion makes GTK replay the same
+  // event forever and shortcuts die. Re-sync whenever the app regains focus.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      HardwareKeyboard.instance.syncKeyboardState().catchError((_) {});
     }
   }
 
@@ -141,6 +153,7 @@ class _NotallyAppState extends State<NotallyApp> {
   void dispose() {
     if (!kIsWeb && Platform.isLinux) {
       HardwareKeyboard.instance.removeHandler(_handleKey);
+      WidgetsBinding.instance.removeObserver(this);
     }
     widget.quickCapture?.teardown();
     super.dispose();

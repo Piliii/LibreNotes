@@ -3,8 +3,12 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart' hide colorFromHex;
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:markdown/markdown.dart' as md;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/notes_repository.dart';
+import '../markdown_editing_controller.dart';
 import '../theme.dart';
 
 /// The editing surface (title + plain-text body) with ~500 ms debounced autosave.
@@ -35,11 +39,12 @@ class NoteEditor extends StatefulWidget {
 
 class _NoteEditorState extends State<NoteEditor> {
   final _titleCtrl = TextEditingController();
-  final _bodyCtrl = TextEditingController();
+  final _bodyCtrl = MarkdownEditingController();
   final _bodyFocus = FocusNode();
   StreamSubscription<NoteRow?>? _sub;
   Timer? _debounce;
   bool _loading = true;
+  bool _preview = false;
   String _color = '#2a2a2a';
   int? _expiresAt;
   bool _applying = false;
@@ -78,6 +83,7 @@ class _NoteEditorState extends State<NoteEditor> {
           widget.onEdited?.call();
         }
       }
+      _preview = false;
       _subscribe();
     }
   }
@@ -226,7 +232,9 @@ class _NoteEditorState extends State<NoteEditor> {
                   ),
                   const SizedBox(height: 8),
                   Expanded(
-                    child: _editBody(textColors),
+                    child: _preview
+                        ? _previewBody(textColors)
+                        : _editBody(textColors),
                   ),
                 ],
               ),
@@ -273,6 +281,13 @@ class _NoteEditorState extends State<NoteEditor> {
                     color: textColors.faint,
                   ),
                   _ToolButton(
+                    icon: _preview ? Icons.edit_outlined : Icons.visibility_outlined,
+                    tooltip: _preview ? 'Edit' : 'Preview',
+                    active: _preview,
+                    onTap: () => setState(() => _preview = !_preview),
+                    color: textColors.faint,
+                  ),
+                  _ToolButton(
                     icon: Icons.archive_outlined,
                     tooltip: 'Archive',
                     onTap: _archive,
@@ -297,6 +312,7 @@ class _NoteEditorState extends State<NoteEditor> {
     return TextField(
       controller: _bodyCtrl,
       focusNode: _bodyFocus,
+      inputFormatters: [MarkdownListContinuation()],
       expands: true,
       maxLines: null,
       textAlignVertical: TextAlignVertical.top,
@@ -306,6 +322,36 @@ class _NoteEditorState extends State<NoteEditor> {
         hintText: 'Start typing…',
         hintStyle: TextStyle(color: textColors.faint),
       ),
+    );
+  }
+
+  Widget _previewBody(NoteTextColors textColors) {
+    final text = _bodyCtrl.text.trim();
+    if (text.isEmpty) {
+      return Align(
+        alignment: Alignment.topLeft,
+        child: Text('Nothing to preview yet.',
+            style: TextStyle(color: textColors.faint, fontSize: 15)),
+      );
+    }
+    return Markdown(
+      data: text,
+      padding: EdgeInsets.zero,
+      extensionSet: md.ExtensionSet.gitHubFlavored,
+      selectable: true,
+      // Privacy: never fetch remote images just by opening a note.
+      imageBuilder: (uri, title, alt) => Text(
+        '🖼 ${(alt ?? '').isEmpty ? uri.toString() : alt}',
+        style: TextStyle(color: textColors.faint, fontSize: 14),
+      ),
+      styleSheet: notallyMarkdownStyle(colors: textColors),
+      inlineSyntaxes: [_HighlightSyntax()],
+      builders: {'mark': _HighlightBuilder()},
+      onTapLink: (_, href, __) async {
+        final uri = href == null ? null : Uri.tryParse(href);
+        const ok = {'http', 'https', 'mailto'};
+        if (uri != null && ok.contains(uri.scheme.toLowerCase())) await launchUrl(uri, mode: LaunchMode.externalApplication);
+      },
     );
   }
 
@@ -336,12 +382,14 @@ class _ToolButton extends StatelessWidget {
     required this.tooltip,
     required this.onTap,
     required this.color,
+    this.active = false,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
   final Color color;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
@@ -349,7 +397,7 @@ class _ToolButton extends StatelessWidget {
       tooltip: tooltip,
       onPressed: onTap,
       iconSize: 20,
-      color: color,
+      color: active ? NotallyColors.accent : color,
       icon: Icon(icon),
     );
   }
@@ -762,4 +810,26 @@ class NoteExpiryDialog extends StatelessWidget {
       ),
     );
   }
+}
+
+/// `==text==` (optionally followed by a legacy `^color` key) → <mark>.
+class _HighlightSyntax extends md.InlineSyntax {
+  _HighlightSyntax() : super(r'==(?=\S)(.+?)(?<=\S)==(?:\^\w+)?');
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    parser.addNode(md.Element.text('mark', match[1]!));
+    return true;
+  }
+}
+
+class _HighlightBuilder extends MarkdownElementBuilder {
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) =>
+      Text(
+        element.textContent,
+        style: (preferredStyle ?? const TextStyle()).copyWith(
+          backgroundColor: NotallyColors.accent.withValues(alpha: 0.35),
+        ),
+      );
 }

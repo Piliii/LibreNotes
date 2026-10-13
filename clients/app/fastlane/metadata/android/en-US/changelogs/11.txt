@@ -1,0 +1,8 @@
+- Markdown: live-styled editor and a Preview button
+- Enter continues bullet, numbered and task lists
+- Android: list view option, card animations, themed (monochrome) launcher icon
+- Conflicts: line-by-line diff and manual merge
+- Faster full-text search
+- Hourglass icon on self-destructing notes
+- Note on the Sync page about F-Droid vs GitHub APK signing
+- Linux: Wayland quick capture

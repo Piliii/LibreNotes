@@ -32,8 +32,20 @@ void main() {
       expect(previewText('line one\nline two'), 'line one line two');
     });
 
-    test('leaves markdown characters untouched', () {
-      expect(previewText('# Title\n**bold** - item'), '# Title **bold** - item');
+    test('strips markdown syntax', () {
+      expect(
+        previewText('# Title\n**bold** and *it* ~~x~~ `c`\n- [x] done\n> q\n[a](http://b)'),
+        'Title bold and it x c done q a',
+      );
+    });
+
+    test('leaves snake_case and escaped markers alone', () {
+      expect(previewText('use snake_case_name and a_b'), 'use snake_case_name and a_b');
+      expect(previewText(r'\*literal\* and _real_'), '*literal* and real');
+    });
+
+    test('drops fences and rules, keeps code text', () {
+      expect(previewText('```dart\nfoo()\n```\n---\nend'), 'foo() end');
     });
 
     test('trims surrounding whitespace', () {

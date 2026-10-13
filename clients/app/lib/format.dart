@@ -40,5 +40,24 @@ String trashRemainingLabel(
   return days == 1 ? '1 day left' : '$days days left';
 }
 
-/// Body flattened to a single line for list/card previews.
-String previewText(String body) => body.replaceAll(RegExp(r'\s*\n\s*'), ' ').trim();
+/// Body flattened to a single line for list/card previews, with Markdown
+/// syntax stripped (heading/quote/list/task markers, emphasis, links, code).
+String previewText(String body) {
+  // Escaped punctuation (`\*`) is shielded in the private-use area so the
+  // emphasis rules below can't see it, then restored.
+  var t = body
+      .replaceAllMapped(RegExp(r'\\([\\`*_{}\[\]()#+\-.!~=|>])'),
+          (m) => String.fromCharCode(0xE000 + m[1]!.codeUnitAt(0)))
+      .replaceAll(RegExp(r'^\s*(```|~~~).*$', multiLine: true), '')
+      .replaceAll(RegExp(r'^\s*([-*_])(\s*\1){2,}\s*$', multiLine: true), '')
+      .replaceAll(RegExp(r'^\s*(#{1,6}\s+|(>\s?)+)', multiLine: true), '')
+      .replaceAll(RegExp(r'^\s*(?:[-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?', multiLine: true), '')
+      .replaceAllMapped(RegExp(r'!?\[([^\]\n]*)\]\([^)\n]*\)'), (m) => m[1]!)
+      .replaceAllMapped(RegExp(r'(\*\*|__|~~|==)(?=\S)(.+?)(?<=\S)\1(\^\w+)?'), (m) => m[2]!)
+      .replaceAllMapped(RegExp(r'(\*)(?=[^\s*])(.+?)(?<=[^\s*])\*'), (m) => m[2]!)
+      .replaceAllMapped(RegExp(r'(?<!\w)_(?=[^\s_])(.+?)(?<=[^\s_])_(?!\w)'), (m) => m[1]!)
+      .replaceAllMapped(RegExp(r'(`+)(.+?)\1'), (m) => m[2]!);
+  t = t.replaceAll(RegExp(r'\s*\n\s*'), ' ').trim();
+  return t.replaceAllMapped(RegExp('[\uE000-\uE0FF]'),
+      (m) => String.fromCharCode(m[0]!.codeUnitAt(0) - 0xE000));
+}
