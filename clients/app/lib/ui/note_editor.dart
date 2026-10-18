@@ -42,6 +42,7 @@ class _NoteEditorState extends State<NoteEditor> {
   final _titleCtrl = TextEditingController();
   final _bodyCtrl = MarkdownEditingController();
   final _bodyFocus = FocusNode();
+  final _previewFocus = FocusNode();
   StreamSubscription<NoteRow?>? _sub;
   Timer? _debounce;
   bool _loading = true;
@@ -180,6 +181,7 @@ class _NoteEditorState extends State<NoteEditor> {
     _debounce?.cancel();
     _sub?.cancel();
     _bodyFocus.dispose();
+    _previewFocus.dispose();
     if (!_loading && _titleCtrl.text.isEmpty && _bodyCtrl.text.isEmpty) {
       // No text ever written — discard the note. See didUpdateWidget above
       // for why this must be a tombstone (deleteNote), not a raw purge.
@@ -201,8 +203,8 @@ class _NoteEditorState extends State<NoteEditor> {
     final textColors = _textColors;
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.keyE, control: true): () =>
-            setState(() => _preview = !_preview),
+        const SingleActivator(LogicalKeyboardKey.keyE, control: true):
+            _togglePreview,
         const SingleActivator(LogicalKeyboardKey.keyA,
             control: true, shift: true): _archive,
         const SingleActivator(LogicalKeyboardKey.delete,
@@ -210,6 +212,16 @@ class _NoteEditorState extends State<NoteEditor> {
       },
       child: _editorBody(textColors),
     );
+  }
+
+  // The body field leaves the tree in preview mode, which would drop focus
+  // out from under the Ctrl+E binding; park it on _previewFocus meanwhile.
+  void _togglePreview() {
+    setState(() => _preview = !_preview);
+    final node = _preview ? _previewFocus : _bodyFocus;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) node.requestFocus();
+    });
   }
 
   Widget _editorBody(NoteTextColors textColors) {
@@ -248,7 +260,9 @@ class _NoteEditorState extends State<NoteEditor> {
                   const SizedBox(height: 8),
                   Expanded(
                     child: _preview
-                        ? _previewBody(textColors)
+                        ? Focus(
+                            focusNode: _previewFocus,
+                            child: _previewBody(textColors))
                         : _editBody(textColors),
                   ),
                 ],
@@ -299,7 +313,7 @@ class _NoteEditorState extends State<NoteEditor> {
                     icon: _preview ? Icons.edit_outlined : Icons.visibility_outlined,
                     tooltip: _preview ? 'Edit' : 'Preview',
                     active: _preview,
-                    onTap: () => setState(() => _preview = !_preview),
+                    onTap: _togglePreview,
                     color: textColors.faint,
                   ),
                   PopupMenuButton<VoidCallback>(

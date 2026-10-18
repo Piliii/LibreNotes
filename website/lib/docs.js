@@ -6,6 +6,7 @@ import path from 'node:path';
 export const DOCS = [
   { slug: 'introduction', title: 'Introduction', group: 'Getting started', file: 'introduction.md' },
   { slug: 'install', title: 'Install the app', group: 'Getting started', file: 'install.md' },
+  { slug: 'keyboard-shortcuts', title: 'Keyboard shortcuts', group: 'Getting started', file: 'keyboard-shortcuts.md' },
   { slug: 'sync-setup', title: 'Set up sync', group: 'Sync', file: 'sync-setup.md' },
   { slug: 'encryption', title: 'Encryption & privacy', group: 'Sync', file: 'encryption.md' },
   { slug: 'troubleshooting', title: 'Troubleshooting', group: 'Help', file: 'troubleshooting.md' },
