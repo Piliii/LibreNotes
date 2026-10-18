@@ -6,6 +6,18 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [1.6.3] — 2026-10-18
+
+### Added
+- Android: swipe a note card right (as well as left) to archive it.
+- Desktop: keyboard shortcuts: Ctrl+F focuses search, Ctrl+E toggles preview,
+  Ctrl+Shift+A archives and Ctrl+Shift+Del trashes the open note; Ctrl+/ or F1
+  lists them all. Ctrl+N and these shortcuts now also work on Windows.
+
+### Changed
+- Editor toolbar: Archive and Move to Trash now live in a three-dot overflow
+  menu next to Note color and Preview.
+
 ## [1.6.0] — 2026-10-13
 
 ### Added

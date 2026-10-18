@@ -13,6 +13,7 @@ import '../theme.dart';
 import 'archive_page.dart';
 import 'import_export_page.dart';
 import 'note_editor.dart';
+import 'shortcuts_help.dart';
 import 'sync_settings_page.dart';
 import 'trash_page.dart';
 
@@ -111,7 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (MediaQuery.sizeOf(context).width >= _desktopBreakpoint) _newNote();
     });
     HardwareKeyboard.instance.addHandler(_trackModifierKeys);
-    if (!kIsWeb && Platform.isLinux) {
+    if (_hasDesktopKeys) {
       HardwareKeyboard.instance.addHandler(_handleKey);
     }
   }
@@ -164,22 +165,38 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_trackModifierKeys);
-    if (!kIsWeb && Platform.isLinux) {
+    if (_hasDesktopKeys) {
       HardwareKeyboard.instance.removeHandler(_handleKey);
     }
     _notesChangedSub?.cancel();
     _searchController.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
+  static final _hasDesktopKeys =
+      !kIsWeb && (Platform.isLinux || Platform.isWindows);
+
+  final _searchFocus = FocusNode();
+
   bool _handleKey(KeyEvent event) {
     if (event is! KeyDownEvent) return false;
-    if (!HardwareKeyboard.instance.isControlPressed) return false;
-    if (event.logicalKey == LogicalKeyboardKey.keyN) {
-      _newNote();
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.f1) {
+      showShortcutsHelp(context);
       return true;
     }
-    return false;
+    if (!HardwareKeyboard.instance.isControlPressed) return false;
+    if (key == LogicalKeyboardKey.keyN) {
+      _newNote();
+    } else if (key == LogicalKeyboardKey.keyF) {
+      _searchFocus.requestFocus();
+    } else if (key == LogicalKeyboardKey.slash) {
+      showShortcutsHelp(context);
+    } else {
+      return false;
+    }
+    return true;
   }
 
   Future<void> _loadPrefs() async {
@@ -394,6 +411,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onNoteContextMenu: (note, pos) =>
                 _showDesktopContextMenu(context, note, pos),
             searchController: _searchController,
+            searchFocus: _searchFocus,
             onSearchChanged: _setQuery,
             hasQuery: _searchQuery.isNotEmpty,
           ),
@@ -769,17 +787,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.only(bottom: 14),
                       child: Dismissible(
                         key: ValueKey('d-${note.id}'),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2A4A3A),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Icon(Icons.archive_outlined,
-                              color: Colors.white70, size: 26),
-                        ),
+                        direction: DismissDirection.horizontal,
+                        background: _archiveSwipeBg(Alignment.centerLeft),
+                        secondaryBackground:
+                            _archiveSwipeBg(Alignment.centerRight),
                         onDismissed: (_) async {
                           await widget.repo.archiveNote(note.id);
                           widget.sync.nudge();
@@ -810,6 +821,17 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
   }
+
+  Widget _archiveSwipeBg(Alignment align) => Container(
+        alignment: align,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A4A3A),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Icon(Icons.archive_outlined,
+            color: Colors.white70, size: 26),
+      );
 
   void _openMobile(String id) {
     Navigator.of(context).push(
@@ -1109,6 +1131,7 @@ class _Sidebar extends StatelessWidget {
     required this.onLayoutToggle,
     this.onNoteContextMenu,
     required this.searchController,
+    required this.searchFocus,
     required this.onSearchChanged,
     required this.hasQuery,
   });
@@ -1124,6 +1147,7 @@ class _Sidebar extends StatelessWidget {
   final VoidCallback onLayoutToggle;
   final void Function(NoteRow, Offset)? onNoteContextMenu;
   final TextEditingController searchController;
+  final FocusNode searchFocus;
   final ValueChanged<String> onSearchChanged;
   final bool hasQuery;
 
@@ -1163,6 +1187,7 @@ class _Sidebar extends StatelessWidget {
                 const SizedBox(height: 12),
                 TextField(
                   controller: searchController,
+                  focusNode: searchFocus,
                   onChanged: onSearchChanged,
                   style: const TextStyle(
                       color: NotallyColors.textPrimary, fontSize: 13),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart' hide colorFromHex;
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
@@ -198,6 +199,20 @@ class _NoteEditorState extends State<NoteEditor> {
   @override
   Widget build(BuildContext context) {
     final textColors = _textColors;
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyE, control: true): () =>
+            setState(() => _preview = !_preview),
+        const SingleActivator(LogicalKeyboardKey.keyA,
+            control: true, shift: true): _archive,
+        const SingleActivator(LogicalKeyboardKey.delete,
+            control: true, shift: true): _trash,
+      },
+      child: _editorBody(textColors),
+    );
+  }
+
+  Widget _editorBody(NoteTextColors textColors) {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 150),
       child: _loading
@@ -287,17 +302,22 @@ class _NoteEditorState extends State<NoteEditor> {
                     onTap: () => setState(() => _preview = !_preview),
                     color: textColors.faint,
                   ),
-                  _ToolButton(
-                    icon: Icons.archive_outlined,
-                    tooltip: 'Archive',
-                    onTap: _archive,
-                    color: textColors.faint,
-                  ),
-                  _ToolButton(
-                    icon: Icons.delete_outline,
-                    tooltip: 'Move to Trash',
-                    onTap: _trash,
-                    color: textColors.faint,
+                  PopupMenuButton<VoidCallback>(
+                    tooltip: 'More',
+                    icon: Icon(Icons.more_vert,
+                        size: 20, color: textColors.faint),
+                    color: NotallyColors.surface,
+                    onSelected: (f) => f(),
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                          value: _archive,
+                          child: const _EditorMenuRow(
+                              Icons.archive_outlined, 'Archive')),
+                      PopupMenuItem(
+                          value: _trash,
+                          child: const _EditorMenuRow(
+                              Icons.delete_outline, 'Move to Trash')),
+                    ],
                   ),
                 ],
               ),
@@ -374,6 +394,19 @@ class _NoteEditorState extends State<NoteEditor> {
     if (diff.inHours < 24) return 'in ${diff.inHours}h';
     return 'in ${diff.inDays}d';
   }
+}
+
+class _EditorMenuRow extends StatelessWidget {
+  const _EditorMenuRow(this.icon, this.label);
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        Icon(icon, size: 18, color: NotallyColors.textFaint),
+        const SizedBox(width: 10),
+        Text(label),
+      ]);
 }
 
 class _ToolButton extends StatelessWidget {
