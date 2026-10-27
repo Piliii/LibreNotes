@@ -7,6 +7,7 @@
   <a href="https://github.com/Piliii/LibreNotes/releases/latest"><img src="https://img.shields.io/github/v/release/Piliii/LibreNotes?color=ff6900" alt="Latest release"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-ff6900" alt="License: AGPLv3"/></a>
   <a href="https://f-droid.org/packages/dev.librenotes.app/"><img src="https://img.shields.io/f-droid/v/dev.librenotes.app?color=ff6900" alt="F-Droid version"/></a>
+  <a href="https://discord.gg/ujpqT4Q3je"><img src="https://img.shields.io/badge/chat-Discord-ff6900?logo=discord&logoColor=white" alt="Join the Discord"/></a>
 </p>
 
 <p align="center">
@@ -24,7 +25,8 @@
   <a href="https://librenotes.ayopili.com/docs">Docs</a> ·
   <a href="PROTOCOL.md">Protocol</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
-  <a href="CONTRIBUTING.md">Contributing</a>
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="https://discord.gg/ujpqT4Q3je">Discord</a>
 </p>
 
 **Platforms:** Android (F-Droid), Linux desktop, Windows desktop
@@ -159,6 +161,11 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 Bug reports, ideas and pull requests are welcome. Start with
 [CONTRIBUTING.md](CONTRIBUTING.md), and please follow the
 [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Community
+
+Join the [Discord server](https://discord.gg/ujpqT4Q3je) to ask questions, report issues, share
+suggestions, or just chat. GitHub issues work too.
 
 ## License
 

@@ -20,3 +20,4 @@ If you want the same notes on more than one device, you can connect the app to a
 - [Install the app](/docs/install)
 - [Set up sync](/docs/sync-setup) across your devices
 - [Encryption & privacy](/docs/encryption): what is protected, and what the server can see
+- [Join the Discord community](https://discord.gg/ujpqT4Q3je): ask questions, report issues, or make suggestions

@@ -3,6 +3,7 @@ const LINKS = [
   { label: 'F-Droid', href: 'https://f-droid.org/en/packages/dev.librenotes.app/', external: true },
   { label: 'AUR', href: 'https://aur.archlinux.org/packages/librenotes-bin', external: true },
   { label: 'Docker', href: 'https://github.com/Piliii/LibreNotes/pkgs/container/librenotes-server', external: true },
+  { label: 'Discord', href: 'https://discord.gg/ujpqT4Q3je', external: true },
   { label: 'License', href: 'https://github.com/Piliii/LibreNotes/blob/main/LICENSE', external: true },
 ];
 

@@ -20,6 +20,12 @@ regardless of code quality. In particular:
 - **LAN-first.** Remote access is meant to go through Tailscale/WireGuard, not
   by exposing the server to the public internet.
 
+## Community
+
+There's a [Discord server](https://discord.gg/ujpqT4Q3je) for questions, quick bug reports, suggestions
+and general chat. It's also a good place to float an idea before opening an
+issue or PR.
+
 ## Reporting bugs
 
 Open a [GitHub issue](https://github.com/Piliii/LibreNotes/issues/new/choose)

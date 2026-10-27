@@ -21,4 +21,4 @@ Update the app and the server to their latest releases.
 
 ## Something else
 
-Open an issue on [GitHub](https://github.com/Piliii/LibreNotes/issues).
+Open an issue on [GitHub](https://github.com/Piliii/LibreNotes/issues), or ask in the [Discord server](https://discord.gg/ujpqT4Q3je). You can report issues and make suggestions there too.

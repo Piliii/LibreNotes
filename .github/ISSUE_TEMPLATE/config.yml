@@ -6,3 +6,6 @@ contact_links:
   - name: Questions & discussion
     url: https://github.com/Piliii/LibreNotes/discussions
     about: Ask setup questions or discuss ideas before filing a formal request.
+  - name: Discord community
+    url: https://discord.gg/ujpqT4Q3je
+    about: Chat, ask questions, report issues or make suggestions in the Discord server.
