@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { siGithub } from 'simple-icons';
+import { siDiscord, siGithub } from 'simple-icons';
 import BrandIcon from './BrandIcon';
 import VersionBadge from './changelog/VersionBadge';
 
@@ -65,6 +65,16 @@ export default function Navbar() {
             aria-label="GitHub"
           >
             <BrandIcon icon={siGithub} size={17} />
+          </a>
+          <a
+            href="https://discord.gg/ujpqT4Q3je"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-[#ff6900]"
+            style={{ color: 'var(--text-secondary)' }}
+            aria-label="Discord"
+          >
+            <BrandIcon icon={siDiscord} size={17} />
           </a>
         </div>
       </div>
