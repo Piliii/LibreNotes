@@ -1,5 +1,9 @@
+import 'dart:io' show File, Directory, FileSystemException, Platform;
+
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:path_provider/path_provider.dart';
 
 import 'local_key_manager.dart';
 
@@ -208,5 +212,48 @@ class AppDatabase extends _$AppDatabase {
     return row.read<int>('c');
   }
 
-  static QueryExecutor _open() => driftDatabase(name: 'notally');
+  // Android keeps drift's default (the app-private documents dir). Linux and
+  // Windows used to land in the user's real ~/Documents; they now use the
+  // app-support dir and move the old file over first.
+  static QueryExecutor _open() => driftDatabase(
+        name: 'notally',
+        native: kIsWeb || Platform.isAndroid
+            ? null
+            : DriftNativeOptions(databasePath: () async {
+                final support = (await getApplicationSupportDirectory()).path;
+                await moveLegacyDb(
+                  (await getApplicationDocumentsDirectory()).path,
+                  support,
+                );
+                return '$support${Platform.pathSeparator}notally.sqlite';
+              }),
+      );
+}
+
+/// One-time move of `notally.sqlite` (+ WAL/SHM sidecars) from [oldDir] to
+/// [newDir]. No-op if there's nothing to move or the new file already exists
+/// (never overwrites). Must run before the database is opened.
+// ponytail: delete after a couple of releases once old installs have moved.
+Future<void> moveLegacyDb(String oldDir, String newDir) async {
+  final s = Platform.pathSeparator;
+  if (oldDir == newDir ||
+      !File('$oldDir${s}notally.sqlite').existsSync() ||
+      File('$newDir${s}notally.sqlite').existsSync()) {
+    return;
+  }
+  await Directory(newDir).create(recursive: true);
+  // Sidecars first, main file last: a crash midway leaves the old main file
+  // in place, so the next launch retries instead of seeing a half-moved db.
+  for (final ext in ['-wal', '-shm', '']) {
+    final from = File('$oldDir${s}notally.sqlite$ext');
+    if (!from.existsSync()) continue;
+    final to = '$newDir${s}notally.sqlite$ext';
+    try {
+      await from.rename(to);
+    } on FileSystemException {
+      // Cross-filesystem: rename can't span mounts.
+      await from.copy(to);
+      await from.delete();
+    }
+  }
 }

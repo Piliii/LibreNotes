@@ -6,6 +6,13 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Changed
+- Linux/Windows: the local database (`notally.sqlite`) no longer lives in your
+  Documents folder; it moves automatically on first launch to the app data
+  directory (`~/.local/share/dev.librenotes.app/` on Linux, `%APPDATA%` on
+  Windows). Downgrading to an older version afterwards starts empty until the
+  next sync. Android is unchanged.
+
 ## [1.6.3] — 2026-10-18
 
 ### Added

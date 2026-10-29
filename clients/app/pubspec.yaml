@@ -38,6 +38,7 @@ dependencies:
   # Local-first storage: reactive SQLite that streams query results.
   drift: ^2.21.0
   drift_flutter: ^0.2.4
+  path_provider: ^2.1.5
 
   # Stable UUIDs generated on the client (so offline creates sync cleanly).
   uuid: ^4.5.1
