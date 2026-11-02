@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:io' show Platform, exit;
 
 import 'package:flutter/material.dart';
@@ -54,7 +55,9 @@ Future<void> _launch(AppDatabase db, NoteCrypto crypto) async {
   await sync.init(waitForFirstSync: false);
   final navigatorKey = GlobalKey<NavigatorState>();
   final quickCapture = QuickCaptureController(repo, navigatorKey);
-  await quickCapture.init();
+  // Not awaited: the Wayland portal handshake can block for 10s+ (or until
+  // the user answers the bind dialog) and must not delay the first frame.
+  unawaited(quickCapture.init());
   final shareIntent = ShareIntentService(repo, navigatorKey);
   runApp(NotallyApp(
     repo: repo,

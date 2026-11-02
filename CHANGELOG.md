@@ -6,6 +6,11 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Fixed
+- Linux (Wayland): startup no longer waits up to 10 s on the global-shortcut
+  portal before showing the UI; the shortcut now registers in the background
+  (#8).
+
 ### Changed
 - Linux/Windows: the local database (`notally.sqlite`) no longer lives in your
   Documents folder; it moves automatically on first launch to the app data
