@@ -6,6 +6,8 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [1.6.5] — 2026-11-12
+
 ### Added
 - Light theme on desktop, Android and web. Pick System, Light or Dark from the
   "⋮" menu (the default follows the OS). Preset note colours show as light

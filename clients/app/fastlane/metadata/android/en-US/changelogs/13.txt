@@ -1,0 +1,1 @@
+- Light theme. Pick System, Light or Dark from the "⋮" menu (the default follows the OS). Preset note colours show as light pastels in the light theme and still sync unchanged to dark-theme devices.
