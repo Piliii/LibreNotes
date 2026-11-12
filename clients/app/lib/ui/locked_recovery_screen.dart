@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
+
 import '../data/database.dart';
 import '../data/local_key_manager.dart';
 import '../sync/note_crypto.dart';
@@ -110,7 +112,7 @@ class _LockedRecoveryScreenState extends State<LockedRecoveryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff1a1a1a),
+      backgroundColor: NotallyColors.background,
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
@@ -121,7 +123,7 @@ class _LockedRecoveryScreenState extends State<LockedRecoveryScreen> {
               builder: (context, snapshot) {
                 if (snapshot.connectionState != ConnectionState.done) {
                   return const Center(
-                    child: CircularProgressIndicator(color: Color(0xffff6900)),
+                    child: CircularProgressIndicator(color: NotallyColors.accent),
                   );
                 }
                 final ks = snapshot.data;
@@ -139,41 +141,41 @@ class _LockedRecoveryScreenState extends State<LockedRecoveryScreen> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.lock_outline, color: Color(0xffff6900), size: 40),
+        const Icon(Icons.lock_outline, color: NotallyColors.accent, size: 40),
         const SizedBox(height: 16),
-        const Text(
+        Text(
           "Couldn't read the local encryption key",
-          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+          style: TextStyle(color: NotallyColors.textBright, fontSize: 18, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Your notes are still safely encrypted on disk. The system keyring '
           "that normally unlocks them automatically is unavailable — enter "
           'your sync passphrase to unlock them again on this device.',
-          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+          style: TextStyle(color: NotallyColors.textMuted, fontSize: 13, height: 1.4),
         ),
         const SizedBox(height: 20),
         TextField(
           controller: _pass,
           obscureText: true,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: NotallyColors.textPrimary),
           onSubmitted: (_) => _busy ? null : _tryUnlock(ks),
           decoration: InputDecoration(
             labelText: 'Passphrase',
-            labelStyle: const TextStyle(color: Colors.white54),
+            labelStyle: TextStyle(color: NotallyColors.textFaint),
             errorText: _error,
-            enabledBorder: const OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.white24),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: NotallyColors.border),
             ),
             focusedBorder: const OutlineInputBorder(
-              borderSide: BorderSide(color: Color(0xffff6900)),
+              borderSide: BorderSide(color: NotallyColors.accent),
             ),
           ),
         ),
         const SizedBox(height: 16),
         FilledButton(
           onPressed: _busy ? null : () => _tryUnlock(ks),
-          style: FilledButton.styleFrom(backgroundColor: const Color(0xffff6900)),
+          style: FilledButton.styleFrom(backgroundColor: NotallyColors.accent),
           child: _busy
               ? const SizedBox(
                   width: 18,
@@ -192,11 +194,11 @@ class _LockedRecoveryScreenState extends State<LockedRecoveryScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
+          Text(
             'This permanently erases every local note. There is no passphrase '
             'to recover them with since sync was never set up on this device. '
             'Are you sure?',
-            style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+            style: TextStyle(color: NotallyColors.textMuted, fontSize: 13, height: 1.4),
           ),
           const SizedBox(height: 20),
           FilledButton(
@@ -216,25 +218,25 @@ class _LockedRecoveryScreenState extends State<LockedRecoveryScreen> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.lock_outline, color: Color(0xffff6900), size: 40),
+        const Icon(Icons.lock_outline, color: NotallyColors.accent, size: 40),
         const SizedBox(height: 16),
-        const Text(
+        Text(
           "Couldn't read the local encryption key",
-          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+          style: TextStyle(color: NotallyColors.textBright, fontSize: 18, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Your notes are still safely encrypted on disk, but the system '
           "keyring that protects them is unavailable and there's no sync "
           'passphrase on this device to recover with. This usually means the '
           "keyring was reset outside the app. If it comes back, reopen the "
           'app and your notes will be readable again.',
-          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+          style: TextStyle(color: NotallyColors.textMuted, fontSize: 13, height: 1.4),
         ),
         const SizedBox(height: 20),
         OutlinedButton(
           onPressed: _busy ? null : () => setState(() => _confirmingReset = true),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.red.shade300),
+          style: OutlinedButton.styleFrom(foregroundColor: NotallyColors.danger),
           child: const Text('Erase local notes and start over'),
         ),
       ],

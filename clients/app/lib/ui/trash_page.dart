@@ -22,8 +22,8 @@ class TrashPage extends StatelessWidget {
         backgroundColor: NotallyColors.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        iconTheme: const IconThemeData(color: NotallyColors.textPrimary),
-        title: const Text(
+        iconTheme: IconThemeData(color: NotallyColors.textPrimary),
+        title: Text(
           'Trash',
           style: TextStyle(
               color: NotallyColors.textBright,
@@ -37,7 +37,7 @@ class TrashPage extends StatelessWidget {
         builder: (context, snapshot) {
           final notes = snapshot.data ?? const <NoteRow>[];
           if (notes.isEmpty) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -58,7 +58,7 @@ class TrashPage extends StatelessWidget {
                 child: Text(
                   'Notes in the trash are permanently deleted after '
                   '${trashRetention.inDays} days.',
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: NotallyColors.textFaint, fontSize: 12.5),
                 ),
               ),
@@ -106,16 +106,16 @@ class _EmptyTrashButton extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: NotallyColors.surface,
-        title: const Text('Empty trash?',
+        title: Text('Empty trash?',
             style: TextStyle(color: NotallyColors.textBright)),
-        content: const Text(
+        content: Text(
           'This permanently deletes all notes in the trash and cannot be undone.',
           style: TextStyle(color: NotallyColors.textMuted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel',
+            child: Text('Cancel',
                 style: TextStyle(color: NotallyColors.textMuted)),
           ),
           TextButton(
@@ -172,7 +172,7 @@ class _TrashItem extends StatelessWidget {
                         note.title.isEmpty ? 'Untitled' : note.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: NotallyColors.textBright, fontSize: 15),
                       ),
                       if (preview.isNotEmpty) ...[
@@ -181,7 +181,7 @@ class _TrashItem extends StatelessWidget {
                           preview,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: NotallyColors.textMuted, fontSize: 13),
                         ),
                       ],
@@ -189,7 +189,7 @@ class _TrashItem extends StatelessWidget {
                       Text(
                         'Deleted ${relativeTime(note.updatedAt)} · '
                         '${trashRemainingLabel(note.updatedAt, retention: trashRetention, graceUntil: repo.trashGraceUntil)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: NotallyColors.textFaint, fontSize: 12),
                       ),
                     ],
@@ -227,14 +227,14 @@ class _TrashItem extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: NotallyColors.surface,
-        title: const Text('Delete permanently?',
+        title: Text('Delete permanently?',
             style: TextStyle(color: NotallyColors.textBright)),
-        content: const Text('This note will be gone forever.',
+        content: Text('This note will be gone forever.',
             style: TextStyle(color: NotallyColors.textMuted)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel',
+            child: Text('Cancel',
                 style: TextStyle(color: NotallyColors.textMuted)),
           ),
           TextButton(
@@ -272,10 +272,10 @@ class _TrashedNoteView extends StatelessWidget {
         backgroundColor: NotallyColors.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        iconTheme: const IconThemeData(color: NotallyColors.textPrimary),
+        iconTheme: IconThemeData(color: NotallyColors.textPrimary),
         title: Text(
           note.title.isEmpty ? 'Untitled' : note.title,
-          style: const TextStyle(
+          style: TextStyle(
               color: NotallyColors.textBright,
               fontSize: 18,
               fontWeight: FontWeight.w600),
@@ -309,7 +309,7 @@ class _TrashedNoteView extends StatelessWidget {
               if (note.title.isNotEmpty) ...[
                 Text(
                   note.title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: NotallyColors.textBright,
                     fontSize: 26,
                     fontWeight: FontWeight.w600,
@@ -320,12 +320,12 @@ class _TrashedNoteView extends StatelessWidget {
               Text(
                 'Deleted ${relativeTime(note.updatedAt)} · '
                 '${trashRemainingLabel(note.updatedAt, retention: trashRetention, graceUntil: repo.trashGraceUntil)}',
-                style: const TextStyle(
+                style: TextStyle(
                     color: NotallyColors.textFaint, fontSize: 13),
               ),
               const SizedBox(height: 20),
               if (note.body.trim().isEmpty)
-                const Text(
+                Text(
                   'No content.',
                   style: TextStyle(
                       color: NotallyColors.textFaint, fontSize: 15),
@@ -344,14 +344,14 @@ class _TrashedNoteView extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: NotallyColors.surface,
-        title: const Text('Delete permanently?',
+        title: Text('Delete permanently?',
             style: TextStyle(color: NotallyColors.textBright)),
-        content: const Text('This note will be gone forever.',
+        content: Text('This note will be gone forever.',
             style: TextStyle(color: NotallyColors.textMuted)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel',
+            child: Text('Cancel',
                 style: TextStyle(color: NotallyColors.textMuted)),
           ),
           TextButton(

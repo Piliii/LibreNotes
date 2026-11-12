@@ -142,7 +142,7 @@ class _ImportExportPageState extends State<ImportExportPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Export',
               style: TextStyle(
                   color: NotallyColors.textBright,
@@ -150,7 +150,7 @@ class _ImportExportPageState extends State<ImportExportPage> {
                   fontSize: 16),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'Decrypts every note (except trashed ones) and writes it out as a '
               'plain .md file into a folder you choose — notes stay readable '
               'outside LibreNotes.',
@@ -164,7 +164,7 @@ class _ImportExportPageState extends State<ImportExportPage> {
               child: const Text('Export all notes…'),
             ),
             const SizedBox(height: 32),
-            const Text(
+            Text(
               'Import',
               style: TextStyle(
                   color: NotallyColors.textBright,
@@ -172,7 +172,7 @@ class _ImportExportPageState extends State<ImportExportPage> {
                   fontSize: 16),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'Reads .md files and encrypts them into your local notes. A '
               'leading "# Heading" line becomes the title; the rest becomes '
               'the body.',

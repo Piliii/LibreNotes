@@ -1,5 +1,5 @@
 import 'package:drift/native.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:librenotes/data/database.dart';
@@ -7,6 +7,7 @@ import 'package:librenotes/data/notes_repository.dart';
 import 'package:librenotes/main.dart';
 import 'package:librenotes/sync/note_crypto.dart';
 import 'package:librenotes/sync/sync_service.dart';
+import 'package:librenotes/theme.dart';
 
 void main() {
   // ---- Repository (the real local-store logic) ----------------------------
@@ -99,7 +100,17 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50)); // first stream emit
 
     expect(find.text('Notes'), findsOneWidget);
-    expect(find.text('+ New Note'), findsOneWidget);
+    expect(find.text('New note'), findsOneWidget);
+
+    // Live theme switch repaints widgets that read NotallyColors directly.
+    Color? titleColor() => tester.widget<Text>(find.text('Notes')).style?.color;
+    addTearDown(() => themeModeNotifier.value = ThemeMode.system);
+    themeModeNotifier.value = ThemeMode.dark;
+    await tester.pump();
+    expect(titleColor(), NotallyPalette.dark.textBright);
+    themeModeNotifier.value = ThemeMode.light;
+    await tester.pump();
+    expect(titleColor(), NotallyPalette.light.textBright);
 
     // Unmount so drift's query-stream subscription is cancelled — that schedules
     // an internal cache-cleanup Timer — then pump to let it fire, so it isn't

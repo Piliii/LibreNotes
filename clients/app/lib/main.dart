@@ -1,6 +1,8 @@
 import 'dart:async' show unawaited;
 import 'dart:io' show Platform, exit;
 
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -20,6 +22,8 @@ import 'ui/outdated_app_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Pre-launch screens (loading/recovery/outdated) just follow the OS.
+  NotallyColors.use(PlatformDispatcher.instance.platformBrightness);
   // Paint something immediately: everything below (migration, keyring, sync
   // init) can take a noticeable moment, and on desktop the window doesn't
   // even appear until the first frame. Replaced by the real app's runApp.
@@ -48,6 +52,9 @@ Future<void> main() async {
 /// recovery screen out for the normal app without needing a process restart.
 Future<void> _launch(AppDatabase db, NoteCrypto crypto) async {
   final repo = NotesRepository(db, crypto);
+  themeModeNotifier.value = ThemeMode.values.asNameMap()[
+          await repo.kvGet(_kThemePref)] ??
+      ThemeMode.system;
   await repo.ensureTrashGrace();
   repo.startSweeps();
   final sync = SyncService(repo);
@@ -70,6 +77,8 @@ Future<void> _launch(AppDatabase db, NoteCrypto crypto) async {
   // route, which isn't true yet synchronously after `runApp`.
   WidgetsBinding.instance.addPostFrameCallback((_) => shareIntent.init());
 }
+
+const _kThemePref = 'pref.theme';
 
 class _RecoveryApp extends StatelessWidget {
   const _RecoveryApp({required this.db});
@@ -135,11 +144,35 @@ class _NotallyAppState extends State<NotallyApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    NotallyColors.use(_brightness());
+    themeModeNotifier.addListener(_onThemeMode);
+    WidgetsBinding.instance.addObserver(this);
     if (!kIsWeb && Platform.isLinux) {
       HardwareKeyboard.instance.addHandler(_handleKey);
-      WidgetsBinding.instance.addObserver(this);
     }
   }
+
+  Brightness _brightness() => switch (themeModeNotifier.value) {
+        ThemeMode.light => Brightness.light,
+        ThemeMode.dark => Brightness.dark,
+        ThemeMode.system => PlatformDispatcher.instance.platformBrightness,
+      };
+
+  /// Swaps the palette if the effective brightness changed. Most widgets read
+  /// NotallyColors directly rather than via Theme.of, so nothing marks them
+  /// dirty on a swap — mark the whole tree by hand (state is kept).
+  void _applyTheme() {
+    if (!NotallyColors.use(_brightness())) return;
+    setState(() {});
+    void markAll(Element e) {
+      e.markNeedsBuild();
+      e.visitChildren(markAll);
+    }
+    context.visitChildElements(markAll);
+  }
+
+  @override
+  void didChangePlatformBrightness() => _applyTheme();
 
   // Keys pressed/released while the window was unfocused (e.g. the global
   // quick-capture hotkey) leave Flutter's pressed-key state out of step with
@@ -147,16 +180,22 @@ class _NotallyAppState extends State<NotallyApp> with WidgetsBindingObserver {
   // event forever and shortcuts die. Re-sync whenever the app regains focus.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed && !kIsWeb && Platform.isLinux) {
       HardwareKeyboard.instance.syncKeyboardState().catchError((_) {});
     }
   }
 
+  void _onThemeMode() {
+    _applyTheme();
+    widget.repo.kvSet(_kThemePref, themeModeNotifier.value.name);
+  }
+
   @override
   void dispose() {
+    themeModeNotifier.removeListener(_onThemeMode);
+    WidgetsBinding.instance.removeObserver(this);
     if (!kIsWeb && Platform.isLinux) {
       HardwareKeyboard.instance.removeHandler(_handleKey);
-      WidgetsBinding.instance.removeObserver(this);
     }
     widget.quickCapture?.teardown();
     super.dispose();

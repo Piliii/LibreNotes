@@ -71,7 +71,7 @@ class MarkdownEditingController extends TextEditingController {
   TextStyle _mono(TextStyle base, {bool faded = false}) => base.copyWith(
         fontFamily: 'monospace',
         fontSize: (base.fontSize ?? 16) * 0.92,
-        backgroundColor: Colors.white.withValues(alpha: 0.06),
+        backgroundColor: (base.color ?? Colors.white).withValues(alpha: 0.08),
         color: faded ? _faded(base).color : base.color,
       );
 

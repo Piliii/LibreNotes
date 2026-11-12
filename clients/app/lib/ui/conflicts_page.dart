@@ -19,16 +19,16 @@ class ConflictsPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: NotallyColors.background,
         elevation: 0,
-        title: const Text('Resolve conflicts',
+        title: Text('Resolve conflicts',
             style: TextStyle(color: NotallyColors.textBright)),
-        iconTheme: const IconThemeData(color: NotallyColors.textPrimary),
+        iconTheme: IconThemeData(color: NotallyColors.textPrimary),
       ),
       body: SafeArea(
         child: ValueListenableBuilder<List<SyncConflict>>(
           valueListenable: service.conflicts,
           builder: (context, conflicts, __) {
             if (conflicts.isEmpty) {
-              return const Center(
+              return Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -79,7 +79,7 @@ class _ConflictCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style: const TextStyle(
+              style: TextStyle(
                   color: NotallyColors.textBright,
                   fontSize: 17,
                   fontWeight: FontWeight.w600)),
@@ -154,14 +154,14 @@ class _Version extends StatelessWidget {
           Row(
             children: [
               Text(label.toUpperCase(),
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: NotallyColors.textFaint,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5)),
               const Spacer(),
               Text(relativeTime(updatedAt),
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: NotallyColors.textFaint, fontSize: 11)),
             ],
           ),
@@ -206,14 +206,15 @@ class _DiffView extends StatelessWidget {
   final String local;
   final String remote;
 
-  static const _red = Color(0xFFE57373);
-  static const _green = Color(0xFF81C784);
+  static Color get _red => NotallyColors.danger;
+  static Color get _green =>
+      NotallyColors.isLight ? const Color(0xFF2E7D32) : const Color(0xFF81C784);
 
   @override
   Widget build(BuildContext context) {
     final lines = diffLines(local, remote);
     if (lines.every((l) => l.op == DiffOp.same)) {
-      return const Text('Text is identical — only metadata differs.',
+      return Text('Text is identical — only metadata differs.',
           style: TextStyle(color: NotallyColors.textFaint, fontSize: 12));
     }
     return Theme(
@@ -223,7 +224,7 @@ class _DiffView extends StatelessWidget {
         childrenPadding: EdgeInsets.zero,
         iconColor: NotallyColors.textFaint,
         collapsedIconColor: NotallyColors.textFaint,
-        title: const Text('Show differences',
+        title: Text('Show differences',
             style: TextStyle(color: NotallyColors.textMuted, fontSize: 13)),
         children: [
           Container(
@@ -236,7 +237,7 @@ class _DiffView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('− this device    + server',
+                Text('− this device    + server',
                     style:
                         TextStyle(color: NotallyColors.textFaint, fontSize: 11)),
                 const SizedBox(height: 6),
@@ -332,9 +333,9 @@ class _MergePageState extends State<_MergePage> {
       appBar: AppBar(
         backgroundColor: NotallyColors.background,
         elevation: 0,
-        title: const Text('Merge manually',
+        title: Text('Merge manually',
             style: TextStyle(color: NotallyColors.textBright)),
-        iconTheme: const IconThemeData(color: NotallyColors.textPrimary),
+        iconTheme: IconThemeData(color: NotallyColors.textPrimary),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,
@@ -350,7 +351,7 @@ class _MergePageState extends State<_MergePage> {
             children: [
               TextField(
                 controller: _title,
-                style: const TextStyle(
+                style: TextStyle(
                     color: NotallyColors.textBright, fontSize: 17),
                 decoration: const InputDecoration(hintText: 'Title'),
               ),
@@ -361,7 +362,7 @@ class _MergePageState extends State<_MergePage> {
                   maxLines: null,
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: NotallyColors.textPrimary,
                       fontFamily: 'monospace',
                       fontSize: 13,

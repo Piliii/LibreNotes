@@ -70,8 +70,8 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
       appBar: AppBar(
         backgroundColor: NotallyColors.background,
         elevation: 0,
-        title: const Text('Sync', style: TextStyle(color: NotallyColors.textBright)),
-        iconTheme: const IconThemeData(color: NotallyColors.textPrimary),
+        title: Text('Sync', style: TextStyle(color: NotallyColors.textBright)),
+        iconTheme: IconThemeData(color: NotallyColors.textPrimary),
       ),
       body: SafeArea(
         child: ListView(
@@ -97,7 +97,7 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'The passphrase never leaves this device — the server only stores '
               'ciphertext. Use the same passphrase on every device.',
               style: TextStyle(color: NotallyColors.textFaint, fontSize: 12),
@@ -137,14 +137,14 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
     return TextField(
       controller: c,
       obscureText: obscure,
-      style: const TextStyle(color: NotallyColors.textPrimary),
+      style: TextStyle(color: NotallyColors.textPrimary),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: NotallyColors.textMuted),
+        labelStyle: TextStyle(color: NotallyColors.textMuted),
         hintText: hint,
-        hintStyle: const TextStyle(color: NotallyColors.textFaint),
+        hintStyle: TextStyle(color: NotallyColors.textFaint),
         suffixIcon: trailing,
-        enabledBorder: const OutlineInputBorder(
+        enabledBorder: OutlineInputBorder(
           borderSide: BorderSide(color: NotallyColors.border),
         ),
         focusedBorder: const OutlineInputBorder(
@@ -185,13 +185,13 @@ class _StatusBanner extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(text,
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: NotallyColors.textPrimary, fontSize: 14)),
                       if (details.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Text(details.join('\n'),
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: NotallyColors.textFaint,
                                   fontSize: 12,
                                   height: 1.5)),
@@ -297,7 +297,7 @@ class _VersionLabel extends StatelessWidget {
         return Center(
           child: SelectableText(
             'LibreNotes ${info.version} (${info.buildNumber})',
-            style: const TextStyle(color: NotallyColors.textFaint, fontSize: 12),
+            style: TextStyle(color: NotallyColors.textFaint, fontSize: 12),
           ),
         );
       },
@@ -363,14 +363,14 @@ class _InstallSourceNoteState extends State<_InstallSourceNote> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(note,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: NotallyColors.textMuted,
                       fontSize: 12,
                       height: 1.5)),
             ),
             IconButton(
               tooltip: 'Dismiss',
-              icon: const Icon(Icons.close,
+              icon: Icon(Icons.close,
                   size: 18, color: NotallyColors.textFaint),
               onPressed: _dismiss,
             ),

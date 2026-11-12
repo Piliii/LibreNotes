@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- LibreNotes is dark-only, so the launch and normal themes are the same
-         whatever the OS's Dark Mode setting says (values/ and values-night/
-         are kept identical on purpose). -->
+    <!-- The styles are identical in values/ and values-night/; only
+         @color/launch_background differs (see colors.xml), so the splash
+         follows the OS Dark Mode setting. The in-app theme can still be
+         forced either way from the overflow menu. -->
     <!-- Theme applied to the Android Window while the process is starting. -->
     <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
         <!-- Show a splash screen on the activity. Automatically removed when

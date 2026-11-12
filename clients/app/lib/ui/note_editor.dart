@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -160,6 +159,12 @@ class _NoteEditorState extends State<NoteEditor> {
     widget.onEdited?.call();
   }
 
+  Future<void> _togglePin() async {
+    final pinned = _note?.pinned ?? false;
+    await widget.repo.updateContent(widget.noteId, pinned: !pinned);
+    widget.onEdited?.call();
+  }
+
   Future<void> _archive() async {
     _debounce?.cancel();
     _loading = true;
@@ -245,11 +250,8 @@ class _NoteEditorState extends State<NoteEditor> {
                   const SizedBox(height: 4),
                   TextField(
                     controller: _titleCtrl,
-                    style: TextStyle(
-                      color: textColors.bright,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: NotallyType.display
+                        .copyWith(color: textColors.bright),
                     decoration: InputDecoration(
                       isDense: true,
                       border: InputBorder.none,
@@ -281,62 +283,48 @@ class _NoteEditorState extends State<NoteEditor> {
                 : _expiresAt != null
                     ? 'Self-destructs ${untilExpiry(_expiresAt!)}'
                     : 'Edited ${relative(_note!.updatedAt)}',
-            style: TextStyle(
+            style: NotallyType.caption.copyWith(
               color: _expiresAt != null
                   ? NotallyColors.accent
                   : textColors.faint,
-              fontSize: 13,
             ),
           ),
         ),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _ToolButton(
-                    icon: Icons.colorize,
-                    tooltip: 'Note color',
-                    onTap: _pickColor,
-                    color: textColors.faint,
-                  ),
-                  _ToolButton(
-                    icon: _preview ? Icons.edit_outlined : Icons.visibility_outlined,
-                    tooltip: _preview ? 'Edit' : 'Preview',
-                    active: _preview,
-                    onTap: _togglePreview,
-                    color: textColors.faint,
-                  ),
-                  PopupMenuButton<VoidCallback>(
-                    tooltip: 'More',
-                    icon: Icon(Icons.more_vert,
-                        size: 20, color: textColors.faint),
-                    color: NotallyColors.surface,
-                    onSelected: (f) => f(),
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                          value: _archive,
-                          child: const _EditorMenuRow(
-                              Icons.archive_outlined, 'Archive')),
-                      PopupMenuItem(
-                          value: _trash,
-                          child: const _EditorMenuRow(
-                              Icons.delete_outline, 'Move to Trash')),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+        _ToolButton(
+          icon: _note?.pinned == true ? Icons.push_pin : Icons.push_pin_outlined,
+          tooltip: _note?.pinned == true ? 'Unpin' : 'Pin',
+          active: _note?.pinned == true,
+          onTap: _togglePin,
+          color: textColors.faint,
+        ),
+        _ToolButton(
+          icon: Icons.palette_outlined,
+          tooltip: 'Note color',
+          onTap: _pickColor,
+          color: textColors.faint,
+        ),
+        _ToolButton(
+          icon: _preview ? Icons.edit_outlined : Icons.visibility_outlined,
+          tooltip: _preview ? 'Edit (Ctrl+E)' : 'Preview (Ctrl+E)',
+          active: _preview,
+          onTap: _togglePreview,
+          color: textColors.faint,
+        ),
+        PopupMenuButton<VoidCallback>(
+          tooltip: 'More',
+          icon: Icon(Icons.more_vert, size: 20, color: textColors.faint),
+          onSelected: (f) => f(),
+          itemBuilder: (_) => [
+            PopupMenuItem(
+                value: _archive,
+                child: const _EditorMenuRow(Icons.archive_outlined, 'Archive')),
+            const PopupMenuDivider(),
+            PopupMenuItem(
+                value: _trash,
+                child: const _EditorMenuRow(
+                    Icons.delete_outline, 'Move to Trash',
+                    danger: true)),
+          ],
         ),
       ],
     );
@@ -350,7 +338,7 @@ class _NoteEditorState extends State<NoteEditor> {
       expands: true,
       maxLines: null,
       textAlignVertical: TextAlignVertical.top,
-      style: TextStyle(color: textColors.primary, fontSize: 16, height: 1.5),
+      style: NotallyType.body.copyWith(color: textColors.primary),
       decoration: InputDecoration(
         border: InputBorder.none,
         hintText: 'Start typing…',
@@ -411,16 +399,23 @@ class _NoteEditorState extends State<NoteEditor> {
 }
 
 class _EditorMenuRow extends StatelessWidget {
-  const _EditorMenuRow(this.icon, this.label);
+  const _EditorMenuRow(this.icon, this.label, {this.danger = false});
   final IconData icon;
   final String label;
+  final bool danger;
 
   @override
-  Widget build(BuildContext context) => Row(children: [
-        Icon(icon, size: 18, color: NotallyColors.textFaint),
-        const SizedBox(width: 10),
-        Text(label),
-      ]);
+  Widget build(BuildContext context) {
+    final color = danger ? NotallyColors.danger : NotallyColors.textFaint;
+    return Row(children: [
+      Icon(icon, size: 18, color: color),
+      const SizedBox(width: 10),
+      Text(label,
+          style: danger
+              ? NotallyType.label.copyWith(color: NotallyColors.danger)
+              : null),
+    ]);
+  }
 }
 
 class _ToolButton extends StatelessWidget {
@@ -595,7 +590,7 @@ class _NoteColorPickerDialogState extends State<NoteColorPickerDialog> {
       backgroundColor: NotallyColors.surface,
       title: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Text('Note color',
                 style: TextStyle(color: NotallyColors.textBright, fontSize: 16)),
           ),
@@ -624,7 +619,7 @@ class _NoteColorPickerDialogState extends State<NoteColorPickerDialog> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(6),
                     gradient: LinearGradient(
-                        colors: _stops.map(colorFromHex).toList()),
+                        colors: _stops.map(noteDisplayColor).toList()),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -642,7 +637,7 @@ class _NoteColorPickerDialogState extends State<NoteColorPickerDialog> {
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: colorFromHex(hex),
+                        color: noteDisplayColor(hex),
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: selected ? NotallyColors.accent : NotallyColors.border,
@@ -711,7 +706,7 @@ class _NoteColorPickerDialogState extends State<NoteColorPickerDialog> {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: colorFromHex(_stops[i]),
+                      color: noteDisplayColor(_stops[i]),
                       shape: BoxShape.circle,
                       border: Border.all(
                         color:
@@ -729,11 +724,11 @@ class _NoteColorPickerDialogState extends State<NoteColorPickerDialog> {
                         child: Container(
                           width: 16,
                           height: 16,
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             color: NotallyColors.surface,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.close,
+                          child: Icon(Icons.close,
                               size: 12, color: NotallyColors.textFaint),
                         ),
                       ),
@@ -752,7 +747,7 @@ class _NoteColorPickerDialogState extends State<NoteColorPickerDialog> {
                 shape: BoxShape.circle,
                 border: Border.all(color: NotallyColors.border, width: 1.5),
               ),
-              child: const Icon(Icons.add,
+              child: Icon(Icons.add,
                   color: NotallyColors.textFaint, size: 18),
             ),
           ),
@@ -819,7 +814,7 @@ class NoteExpiryDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: NotallyColors.surface,
-      title: const Text(
+      title: Text(
         'Self-destruct timer',
         style: TextStyle(color: NotallyColors.textBright, fontSize: 16),
       ),
@@ -830,17 +825,17 @@ class NoteExpiryDialog extends StatelessWidget {
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(o.label,
-                  style: const TextStyle(color: NotallyColors.textPrimary)),
-              trailing: const Icon(Icons.hourglass_bottom,
+                  style: TextStyle(color: NotallyColors.textPrimary)),
+              trailing: Icon(Icons.hourglass_bottom,
                   color: NotallyColors.textFaint, size: 18),
               onTap: () => Navigator.pop(
                   context, NoteExpiryResult(DateTime.now().add(o.duration))),
             ),
           ListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Custom date & time…',
+            title: Text('Custom date & time…',
                 style: TextStyle(color: NotallyColors.textPrimary)),
-            trailing: const Icon(Icons.edit_calendar,
+            trailing: Icon(Icons.edit_calendar,
                 color: NotallyColors.textFaint, size: 18),
             onTap: () => _pickCustom(context),
           ),

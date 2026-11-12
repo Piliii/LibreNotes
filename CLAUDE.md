@@ -19,7 +19,8 @@ rename those, they're just library identifiers.
   right. Mobile = staggered 2-column masonry grid of cards (body preview only
   when no title; title + body when title exists, variable height).
 - **Design DNA** (from the original prototype): dark theme (`#1a1a1a` /
-  `#242424`), **orange accent `#ff6900`**, resizable sidebar, ~500 ms debounced
+  `#242424`) plus a light counterpart (System/Light/Dark, `NotallyPalette` in
+  `theme.dart`), **orange accent `#ff6900`**, resizable sidebar, ~500 ms debounced
   autosave, local cache for instant load.
 - **Offline-first:** every client has a local store and works fully offline;
   it syncs opportunistically whenever the home server is reachable.

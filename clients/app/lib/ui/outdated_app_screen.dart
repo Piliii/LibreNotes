@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
+
 /// Shown at startup instead of the normal app when this binary's schema
 /// ([DatabaseTooNewException.supported]) is older than the schema already on
 /// the local database ([DatabaseTooNewException.onDisk]) — meaning a newer
@@ -19,7 +21,7 @@ class OutdatedAppScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff1a1a1a),
+      backgroundColor: NotallyColors.background,
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
@@ -30,12 +32,12 @@ class OutdatedAppScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Icon(Icons.system_update_alt,
-                    color: Color(0xffff6900), size: 40),
+                    color: NotallyColors.accent, size: 40),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'This app is out of date',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: NotallyColors.textBright,
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
                   ),
@@ -47,8 +49,8 @@ class OutdatedAppScreen extends StatelessWidget {
                   'but this build only understands schema $supportedVersion. '
                   "Nothing has been changed — update LibreNotes to the "
                   'latest version and reopen it.',
-                  style: const TextStyle(
-                    color: Colors.white70,
+                  style: TextStyle(
+                    color: NotallyColors.textMuted,
                     fontSize: 13,
                     height: 1.4,
                   ),

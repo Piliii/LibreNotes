@@ -6,6 +6,11 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Added
+- Light theme on desktop, Android and web. Pick System, Light or Dark from the
+  "⋮" menu (the default follows the OS). Preset note colours show as light
+  pastels in the light theme and still sync unchanged to dark-theme devices.
+
 ### Fixed
 - Linux (Wayland): startup no longer waits up to 10 s on the global-shortcut
   portal before showing the UI; the shortcut now registers in the background

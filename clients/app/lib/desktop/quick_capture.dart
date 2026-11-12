@@ -206,7 +206,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
                   Icon(Icons.bolt, size: 16, color: NotallyColors.accent),
                   SizedBox(width: 6),
@@ -230,9 +230,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                   maxLines: null,
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: NotallyColors.textPrimary, fontSize: 15),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     border: InputBorder.none,
                     hintText: 'Type a note…',
                     hintStyle: TextStyle(color: NotallyColors.textFaint),
@@ -240,7 +240,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Enter to save · Esc to discard',
                 style: TextStyle(color: NotallyColors.textFaint, fontSize: 11),
               ),

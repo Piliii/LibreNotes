@@ -21,7 +21,7 @@ enum _DesktopLayout { sidebar, tabs }
 
 enum _NoteAction { pin, timer, archive }
 
-enum _SidebarMenuAction { layout, archive, importExport, refresh }
+enum _SidebarMenuAction { layout, theme, archive, importExport, refresh }
 
 enum _BulkAction { archive, pin, unpin }
 
@@ -129,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: NotallyColors.surface,
-        title: const Text('Trash now empties itself',
+        title: Text('Trash now empties itself',
             style: TextStyle(color: NotallyColors.textBright)),
         content: Text(
           'Notes in the trash are now permanently deleted '
@@ -138,12 +138,12 @@ class _HomeScreenState extends State<HomeScreen> {
           '${trashRetention.inDays} days get a ${trashPurgeGrace.inDays}-day '
           'grace period before they are deleted. Restore anything you want '
           'to keep before then.',
-          style: const TextStyle(color: NotallyColors.textMuted),
+          style: TextStyle(color: NotallyColors.textMuted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Got it',
+            child: Text('Got it',
                 style: TextStyle(color: NotallyColors.textMuted)),
           ),
           TextButton(
@@ -628,14 +628,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                   controller: _searchController,
                                   autofocus: true,
                                   onChanged: _setQuery,
-                                  style: const TextStyle(
+                                  style: NotallyType.title.copyWith(
                                       color: NotallyColors.textPrimary,
-                                      fontSize: 22),
-                                  decoration: const InputDecoration(
+                                      fontWeight: FontWeight.w400),
+                                  decoration: InputDecoration(
                                     hintText: 'Search notes…',
-                                    hintStyle: TextStyle(
+                                    hintStyle: NotallyType.title.copyWith(
                                         color: NotallyColors.textFaint,
-                                        fontSize: 22),
+                                        fontWeight: FontWeight.w400),
                                     border: InputBorder.none,
                                     isDense: true,
                                     contentPadding: EdgeInsets.zero,
@@ -664,21 +664,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                       CrossAxisAlignment.baseline,
                                   textBaseline: TextBaseline.alphabetic,
                                   children: [
-                                    const Text(
-                                      'Notes',
-                                      style: TextStyle(
-                                        color: NotallyColors.textBright,
-                                        fontSize: 32,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                                    Text('Notes',
+                                        style: NotallyType.display),
                                     const SizedBox(width: 10),
                                     if (totalCount > 0)
                                       Text(
                                         '$totalCount',
-                                        style: const TextStyle(
-                                            color: NotallyColors.textFaint,
-                                            fontSize: 18),
+                                        style: NotallyType.label.copyWith(
+                                            color: NotallyColors.textFaint),
                                       ),
                                   ],
                                 ),
@@ -691,15 +684,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onPressed: () =>
                                     setState(() => _mobileSearchActive = true),
                               ),
-                              IconButton(
-                                icon: Icon(_mobileListView
-                                    ? Icons.grid_view
-                                    : Icons.view_agenda_outlined),
-                                tooltip:
-                                    _mobileListView ? 'Grid view' : 'List view',
-                                color: NotallyColors.textFaint,
-                                iconSize: 22,
-                                onPressed: () {
+                              _MobileMoreButton(
+                                repo: widget.repo,
+                                onChanged: widget.sync.nudge,
+                                listView: _mobileListView,
+                                onToggleLayout: () {
                                   setState(() {
                                     _mobileListView = !_mobileListView;
                                     _listToggled = true;
@@ -708,9 +697,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                       _mobileListView ? '1' : '0');
                                 },
                               ),
-                              _MobileMoreButton(
-                                  repo: widget.repo,
-                                  onChanged: widget.sync.nudge),
                               _SyncButton(sync: widget.sync),
                             ],
                           ),
@@ -724,12 +710,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.search_off,
+                        Icon(Icons.search_off,
                             size: 52, color: NotallyColors.textFaint),
                         const SizedBox(height: 16),
                         Text(
                           'No notes match "$_searchQuery"',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: NotallyColors.textMuted, fontSize: 15),
                           textAlign: TextAlign.center,
                         ),
@@ -827,7 +813,7 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 20),
         decoration: BoxDecoration(
           color: const Color(0xFF2A4A3A),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(NotallyRadius.md),
         ),
         child: const Icon(Icons.archive_outlined,
             color: Colors.white70, size: 26),
@@ -863,7 +849,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const BorderRadius.vertical(top: Radius.circular(20)),
               border: Border(
                 top: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.1), width: 0.5),
+                    color: NotallyColors.overlay.withValues(alpha: 0.1), width: 0.5),
               ),
             ),
             child: SafeArea(
@@ -878,7 +864,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       height: 4,
                       margin: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18),
+                        color: NotallyColors.overlay.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -888,7 +874,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                     child: Text(
                       note.title.isEmpty ? 'Untitled' : note.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: NotallyColors.textBright,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -898,7 +884,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   Divider(
-                      color: Colors.white.withValues(alpha: 0.07), height: 1),
+                      color: NotallyColors.overlay.withValues(alpha: 0.07), height: 1),
                   // inline color picker
                   Padding(
                     padding: const EdgeInsets.symmetric(
@@ -907,7 +893,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         ...kNoteColorHexes.map((hex) {
-                          final color = colorFromHex(hex);
+                          final color = noteDisplayColor(hex);
                           final selected = note.color == hex;
                           return GestureDetector(
                             onTap: () async {
@@ -926,7 +912,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 border: Border.all(
                                   color: selected
                                       ? NotallyColors.accent
-                                      : Colors.white24,
+                                      : NotallyColors.overlay.withValues(alpha: 0.24),
                                   width: selected ? 2.5 : 1,
                                 ),
                                 boxShadow: selected
@@ -941,8 +927,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     : null,
                               ),
                               child: selected
-                                  ? const Icon(Icons.check,
-                                      size: 15, color: Colors.white70)
+                                  ? Icon(Icons.check,
+                                      size: 15, color: NotallyColors.overlay.withValues(alpha: 0.7))
                                   : null,
                             ),
                           );
@@ -968,17 +954,17 @@ class _HomeScreenState extends State<HomeScreen> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                  color: Colors.white24, width: 1),
+                                  color: NotallyColors.overlay.withValues(alpha: 0.24), width: 1),
                             ),
-                            child: const Icon(Icons.more_horiz,
-                                size: 16, color: Colors.white70),
+                            child: Icon(Icons.more_horiz,
+                                size: 16, color: NotallyColors.overlay.withValues(alpha: 0.7)),
                           ),
                         ),
                       ],
                     ),
                   ),
                   Divider(
-                      color: Colors.white.withValues(alpha: 0.07), height: 1),
+                      color: NotallyColors.overlay.withValues(alpha: 0.07), height: 1),
                   ListTile(
                     leading: Icon(
                       note.pinned
@@ -988,7 +974,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     title: Text(
                       note.pinned ? 'Unpin' : 'Pin',
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: NotallyColors.textPrimary),
                     ),
                     onTap: () async {
@@ -1009,7 +995,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       note.expiresAt != null
                           ? 'Change self-destruct timer'
                           : 'Self-destruct timer',
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: NotallyColors.textPrimary),
                     ),
                     onTap: () async {
@@ -1026,9 +1012,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.archive_outlined,
+                    leading: Icon(Icons.archive_outlined,
                         color: NotallyColors.textFaint),
-                    title: const Text('Archive',
+                    title: Text('Archive',
                         style:
                             TextStyle(color: NotallyColors.textPrimary)),
                     onTap: () async {
@@ -1038,9 +1024,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.delete_outline,
+                    leading: Icon(Icons.delete_outline,
                         color: NotallyColors.textFaint),
-                    title: const Text('Move to Trash',
+                    title: Text('Move to Trash',
                         style:
                             TextStyle(color: NotallyColors.textPrimary)),
                     onTap: () async {
@@ -1159,7 +1145,7 @@ class _Sidebar extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               border: Border(bottom: BorderSide(color: NotallyColors.border)),
             ),
             child: Column(
@@ -1167,14 +1153,11 @@ class _Sidebar extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text('Notes',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              color: NotallyColors.textBright,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold)),
+                          style: NotallyType.title),
                     ),
                     _SidebarMoreButton(
                       repo: repo,
@@ -1189,13 +1172,12 @@ class _Sidebar extends StatelessWidget {
                   controller: searchController,
                   focusNode: searchFocus,
                   onChanged: onSearchChanged,
-                  style: const TextStyle(
-                      color: NotallyColors.textPrimary, fontSize: 13),
+                  style: NotallyType.label,
                   decoration: InputDecoration(
                     hintText: 'Search notes…',
-                    hintStyle: const TextStyle(
-                        color: NotallyColors.textFaint, fontSize: 13),
-                    prefixIcon: const Icon(Icons.search_outlined,
+                    hintStyle: NotallyType.label
+                        .copyWith(color: NotallyColors.textFaint),
+                    prefixIcon: Icon(Icons.search_outlined,
                         size: 18, color: NotallyColors.textFaint),
                     suffixIcon: hasQuery
                         ? IconButton(
@@ -1213,14 +1195,14 @@ class _Sidebar extends StatelessWidget {
                     contentPadding: const EdgeInsets.symmetric(
                         vertical: 8, horizontal: 12),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NotallyRadius.sm),
                       borderSide:
-                          const BorderSide(color: NotallyColors.border),
+                          BorderSide(color: NotallyColors.border),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide:
-                          const BorderSide(color: NotallyColors.border),
+                          BorderSide(color: NotallyColors.border),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -1232,9 +1214,18 @@ class _Sidebar extends StatelessWidget {
                 const SizedBox(height: 12),
                 FilledButton(
                   onPressed: onNew,
-                  child: const Padding(
+                  child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 4),
-                    child: Text('+ New Note'),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add, size: 18),
+                        SizedBox(width: 6),
+                        Text('New note',
+                            style: NotallyType.label
+                                .copyWith(color: Colors.white)),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -1260,7 +1251,7 @@ class _Sidebar extends StatelessWidget {
                               const SizedBox(height: 10),
                               Text(
                                 hasQuery ? 'No notes match' : 'No notes yet',
-                                style: const TextStyle(
+                                style: TextStyle(
                                     color: NotallyColors.textFaint,
                                     fontSize: 13),
                               ),
@@ -1346,12 +1337,8 @@ class _SidebarSectionLabel extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
       child: Text(
         label.toUpperCase(),
-        style: const TextStyle(
-          color: NotallyColors.textFaint,
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 1.1,
-        ),
+        style: NotallyType.caption.copyWith(
+            fontWeight: FontWeight.w600, letterSpacing: 1.2),
       ),
     );
   }
@@ -1388,7 +1375,7 @@ class _NoteListItem extends StatelessWidget {
       gradientColors = [
         Color.lerp(base, Colors.white, 0.06)!,
         base,
-        Color.lerp(base, Colors.black, 0.08)!,
+        Color.lerp(base, Colors.black, NotallyColors.isLight ? 0.035 : 0.08)!,
       ];
       gradientStops = const [0.0, 0.5, 1.0];
     }
@@ -1409,19 +1396,16 @@ class _NoteListItem extends StatelessWidget {
               colors: gradientColors,
               stops: gradientStops,
             ),
-            borderRadius: BorderRadius.circular(8),
-            border: Border(
-              left: BorderSide(
-                color: (active || isMultiSelected)
-                    ? NotallyColors.accent
-                        .withValues(alpha: active ? 1.0 : 0.65)
-                    : Colors.transparent,
-                width: 3,
-              ),
+            borderRadius: BorderRadius.circular(NotallyRadius.md),
+            border: Border.all(
+              color: (active || isMultiSelected)
+                  ? NotallyColors.accent
+                      .withValues(alpha: active ? 1.0 : 0.65)
+                  : Colors.transparent,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
+                color: Colors.black.withValues(alpha: NotallyColors.isLight ? 0.08 : 0.25),
                 blurRadius: 8,
                 spreadRadius: -2,
                 offset: const Offset(0, 3),
@@ -1429,14 +1413,14 @@ class _NoteListItem extends StatelessWidget {
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NotallyRadius.md),
             child: Material(
               color: Colors.transparent,
               child: InkWell(
                 onTap: onTap,
-                hoverColor: Colors.white.withValues(alpha: 0.06),
+                hoverColor: NotallyColors.overlay.withValues(alpha: 0.06),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 20, 12, 20),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1459,7 +1443,7 @@ class _NoteListItem extends StatelessWidget {
                                   : _previewOrPlaceholder(note.body),
                               maxLines: note.title.isEmpty ? 2 : 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
+                              style: NotallyType.subtitle.copyWith(
                                 // Title-less notes show the body as their
                                 // primary line, so it gets full brightness
                                 // like a real title would — no dimming even
@@ -1468,11 +1452,10 @@ class _NoteListItem extends StatelessWidget {
                                     ? textColors.bright
                                     : textColors.bright
                                         .withValues(alpha: 0.92),
-                                fontSize: 14,
-                                // Only bold titles, not body-as-fallback text.
-                                fontWeight: (active && note.title.isNotEmpty)
+                                // Only titles are bold, not body-as-fallback text.
+                                fontWeight: note.title.isNotEmpty
                                     ? FontWeight.w600
-                                    : FontWeight.normal,
+                                    : FontWeight.w400,
                               ),
                             ),
                           ),
@@ -1492,9 +1475,9 @@ class _NoteListItem extends StatelessWidget {
                           _previewOrPlaceholder(note.body),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              color: textColors.muted.withValues(alpha: 0.85),
-                              fontSize: 12),
+                          style: NotallyType.label.copyWith(
+                              color: textColors.muted,
+                              fontWeight: FontWeight.w400),
                         ),
                       ],
                     ],
@@ -1522,10 +1505,10 @@ class _BulkActionBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: NotallyColors.surface,
-        border: const Border(top: BorderSide(color: NotallyColors.border)),
+        border: Border(top: BorderSide(color: NotallyColors.border)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
+            color: Colors.black.withValues(alpha: NotallyColors.isLight ? 0.05 : 0.15),
             blurRadius: 6,
             offset: const Offset(0, -2),
           ),
@@ -1535,7 +1518,7 @@ class _BulkActionBar extends StatelessWidget {
         children: [
           Text(
             '$count selected',
-            style: const TextStyle(
+            style: TextStyle(
                 color: NotallyColors.textMuted,
                 fontSize: 12,
                 fontWeight: FontWeight.w500),
@@ -1619,13 +1602,13 @@ class _MultiSelectPanel extends StatelessWidget {
           const SizedBox(height: 18),
           Text(
             '$count notes selected',
-            style: const TextStyle(
+            style: TextStyle(
                 color: NotallyColors.textMuted,
                 fontSize: 16,
                 fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Use the sidebar bar below to act on them',
             style: TextStyle(color: NotallyColors.textFaint, fontSize: 13),
           ),
@@ -1685,7 +1668,7 @@ class _NoteTab extends StatelessWidget {
           : (d) => onSecondaryTap!(d.globalPosition),
       child: InkWell(
         onTap: onTap,
-        hoverColor: Colors.white10,
+        hoverColor: NotallyColors.overlay.withValues(alpha: 0.1),
         child: Container(
           constraints: const BoxConstraints(maxWidth: 180),
           padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -1695,7 +1678,7 @@ class _NoteTab extends StatelessWidget {
                 color: selected ? NotallyColors.accent : Colors.transparent,
                 width: 2,
               ),
-              right: const BorderSide(color: NotallyColors.border),
+              right: BorderSide(color: NotallyColors.border),
             ),
           ),
           child: Row(
@@ -1880,7 +1863,7 @@ class _NoteCardState extends State<_NoteCard>
       gradientColors = [
         Color.lerp(base, Colors.white, 0.07)!,
         base,
-        Color.lerp(base, Colors.black, 0.10)!,
+        Color.lerp(base, Colors.black, NotallyColors.isLight ? 0.045 : 0.10)!,
       ];
       gradientStops = const [0.0, 0.45, 1.0];
       shadowTint = base;
@@ -1915,14 +1898,14 @@ class _NoteCardState extends State<_NoteCard>
           stops: gradientStops,
           colors: gradientColors,
         ),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(NotallyRadius.md),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.09),
+          color: NotallyColors.overlay.withValues(alpha: 0.09),
           width: 0.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.38),
+            color: Colors.black.withValues(alpha: NotallyColors.isLight ? 0.12 : 0.38),
             blurRadius: 14,
             spreadRadius: -2,
             offset: const Offset(0, 5),
@@ -1935,14 +1918,14 @@ class _NoteCardState extends State<_NoteCard>
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(NotallyRadius.md),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: widget.onTap,
             onLongPress: widget.onLongPress,
-            splashColor: Colors.white24,
-            highlightColor: Colors.white10,
+            splashColor: NotallyColors.overlay.withValues(alpha: 0.24),
+            highlightColor: NotallyColors.overlay.withValues(alpha: 0.1),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -1958,11 +1941,8 @@ class _NoteCardState extends State<_NoteCard>
                             widget.note.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                color: textColors.bright,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                height: 1.3),
+                            style: NotallyType.subtitle
+                                .copyWith(color: textColors.bright),
                           ),
                         ),
                         if (widget.note.pinned)
@@ -1991,15 +1971,13 @@ class _NoteCardState extends State<_NoteCard>
                     _previewOrPlaceholder(widget.note.body),
                     maxLines: widget.note.title.isEmpty ? 9 : 7,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: NotallyType.label.copyWith(
                         // Title-less cards show only the body, so it's the
-                        // primary text here — lighter than the ordinary
-                        // secondary-preview shade so it doesn't blend into
-                        // the card background.
+                        // primary text here and stays bright.
                         color: widget.note.title.isEmpty
-                            ? textColors.bright.withValues(alpha: 0.85)
-                            : textColors.muted.withValues(alpha: 0.9),
-                        fontSize: 13,
+                            ? textColors.bright
+                            : textColors.muted,
+                        fontWeight: FontWeight.w400,
                         height: 1.45),
                   ),
                   const SizedBox(height: 10),
@@ -2013,9 +1991,8 @@ class _NoteCardState extends State<_NoteCard>
                       ],
                       Text(
                         relativeTime(widget.note.updatedAt),
-                        style: TextStyle(
-                            color: textColors.faint.withValues(alpha: 0.75),
-                            fontSize: 11),
+                        style: NotallyType.caption
+                            .copyWith(color: textColors.faint),
                       ),
                     ],
                   ),
@@ -2046,18 +2023,29 @@ class _SectionLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10, left: 2),
       child: Text(
         label.toUpperCase(),
-        style: const TextStyle(
-          color: NotallyColors.textFaint,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 1.2,
-        ),
+        style: NotallyType.caption.copyWith(
+            fontWeight: FontWeight.w600, letterSpacing: 1.2),
       ),
     );
   }
 }
 
 // --- Shared bits ------------------------------------------------------------
+
+/// "Theme: …" menu row; selecting it calls [cycleThemeMode].
+class _ThemeMenuRow extends StatelessWidget {
+  const _ThemeMenuRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, name) = switch (themeModeNotifier.value) {
+      ThemeMode.system => (Icons.brightness_auto_outlined, 'System'),
+      ThemeMode.light => (Icons.light_mode_outlined, 'Light'),
+      ThemeMode.dark => (Icons.dark_mode_outlined, 'Dark'),
+    };
+    return _MenuRow(icon: icon, label: 'Theme: $name');
+  }
+}
 
 class _MenuRow extends StatelessWidget {
   const _MenuRow({required this.icon, required this.label});
@@ -2101,12 +2089,13 @@ class _SidebarMoreButton extends StatelessWidget {
         final syncing = status.state == SyncState.syncing;
         return PopupMenuButton<_SidebarMenuAction>(
           tooltip: 'More',
-          icon: const Icon(Icons.more_vert,
-              color: NotallyColors.textFaint, size: 22),
+          icon: Icon(Icons.more_vert, color: NotallyColors.textFaint),
           onSelected: (action) {
             switch (action) {
               case _SidebarMenuAction.layout:
                 onLayoutToggle();
+              case _SidebarMenuAction.theme:
+                cycleThemeMode();
               case _SidebarMenuAction.archive:
                 Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) =>
@@ -2126,6 +2115,10 @@ class _SidebarMoreButton extends StatelessWidget {
               child: _MenuRow(
                   icon: Icons.view_headline_outlined,
                   label: 'Switch to tabs layout'),
+            ),
+            const PopupMenuItem(
+              value: _SidebarMenuAction.theme,
+              child: _ThemeMenuRow(),
             ),
             const PopupMenuItem(
               value: _SidebarMenuAction.archive,
@@ -2150,25 +2143,35 @@ class _SidebarMoreButton extends StatelessWidget {
   }
 }
 
-enum _MobileMoreAction { archive, importExport }
+enum _MobileMoreAction { layout, theme, archive, importExport }
 
 /// Collapses the less-frequently-used mobile header actions (archive,
 /// import/export) behind one overflow button, mirroring
 /// [_SidebarMoreButton] on desktop.
 class _MobileMoreButton extends StatelessWidget {
-  const _MobileMoreButton({required this.repo, this.onChanged});
+  const _MobileMoreButton({
+    required this.repo,
+    this.onChanged,
+    required this.listView,
+    required this.onToggleLayout,
+  });
 
   final NotesRepository repo;
   final VoidCallback? onChanged;
+  final bool listView;
+  final VoidCallback onToggleLayout;
 
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<_MobileMoreAction>(
       tooltip: 'More',
-      icon: const Icon(Icons.more_vert,
-          color: NotallyColors.textFaint, size: 22),
+      icon: Icon(Icons.more_vert, color: NotallyColors.textFaint),
       onSelected: (action) {
         switch (action) {
+          case _MobileMoreAction.layout:
+            onToggleLayout();
+          case _MobileMoreAction.theme:
+            cycleThemeMode();
           case _MobileMoreAction.archive:
             Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => ArchivePage(repo: repo, onChanged: onChanged),
@@ -2180,6 +2183,16 @@ class _MobileMoreButton extends StatelessWidget {
         }
       },
       itemBuilder: (context) => [
+        PopupMenuItem(
+          value: _MobileMoreAction.layout,
+          child: _MenuRow(
+              icon: listView ? Icons.grid_view : Icons.view_agenda_outlined,
+              label: listView ? 'Grid view' : 'List view'),
+        ),
+        const PopupMenuItem(
+          value: _MobileMoreAction.theme,
+          child: _ThemeMenuRow(),
+        ),
         const PopupMenuItem(
           value: _MobileMoreAction.archive,
           child: _MenuRow(icon: Icons.archive_outlined, label: 'Archive'),
@@ -2263,7 +2276,7 @@ class _SyncButton extends StatelessWidget {
       case SyncState.syncing:
         return (Icons.sync, NotallyColors.accent);
       case SyncState.ok:
-        return (Icons.cloud_done, const Color(0xFF4CAF50));
+        return (Icons.cloud_done, NotallyColors.success);
       case SyncState.offline:
         return (Icons.cloud_off, NotallyColors.textMuted);
       case SyncState.error:
@@ -2340,7 +2353,7 @@ class _EmptyEditor extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          const Text(
+          Text(
             'Select a note',
             style: TextStyle(
                 color: NotallyColors.textMuted,
@@ -2348,7 +2361,7 @@ class _EmptyEditor extends StatelessWidget {
                 fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 5),
-          const Text(
+          Text(
             'or create a new one',
             style:
                 TextStyle(color: NotallyColors.textFaint, fontSize: 13),
@@ -2363,7 +2376,7 @@ class _EmptyHint extends StatelessWidget {
   const _EmptyHint();
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

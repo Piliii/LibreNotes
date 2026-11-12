@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Matches NotallyColors.background in lib/theme.dart. -->
-    <color name="launch_background">#1A1A1A</color>
+    <!-- Matches NotallyPalette.light.background in lib/theme.dart; the dark
+         counterpart lives in values-night/colors.xml. -->
+    <color name="launch_background">#F4F4F2</color>
     <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

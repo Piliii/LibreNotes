@@ -50,7 +50,7 @@ class LoadingScreen extends StatelessWidget {
             ),
             if (showName) ...[
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 'LibreNotes',
                 style: TextStyle(
                   color: NotallyColors.textBright,

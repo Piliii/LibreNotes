@@ -21,8 +21,8 @@ class ArchivePage extends StatelessWidget {
         backgroundColor: NotallyColors.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        iconTheme: const IconThemeData(color: NotallyColors.textPrimary),
-        title: const Text(
+        iconTheme: IconThemeData(color: NotallyColors.textPrimary),
+        title: Text(
           'Archive',
           style: TextStyle(
               color: NotallyColors.textBright,
@@ -48,7 +48,7 @@ class ArchivePage extends StatelessWidget {
         builder: (context, snapshot) {
           final notes = snapshot.data ?? const <NoteRow>[];
           if (notes.isEmpty) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -121,7 +121,7 @@ class _ArchiveItem extends StatelessWidget {
                           note.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: NotallyColors.textBright, fontSize: 15),
                         ),
                       if (note.title.isNotEmpty && preview.isNotEmpty)
@@ -140,7 +140,7 @@ class _ArchiveItem extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         'Archived ${relativeTime(note.updatedAt)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: NotallyColors.textFaint, fontSize: 12),
                       ),
                     ],
@@ -196,10 +196,10 @@ class _ArchivedNoteView extends StatelessWidget {
         backgroundColor: NotallyColors.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        iconTheme: const IconThemeData(color: NotallyColors.textPrimary),
+        iconTheme: IconThemeData(color: NotallyColors.textPrimary),
         title: Text(
           note.title.isEmpty ? 'Archived note' : note.title,
-          style: const TextStyle(
+          style: TextStyle(
               color: NotallyColors.textBright,
               fontSize: 18,
               fontWeight: FontWeight.w600),
@@ -237,7 +237,7 @@ class _ArchivedNoteView extends StatelessWidget {
               if (note.title.isNotEmpty) ...[
                 Text(
                   note.title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: NotallyColors.textBright,
                     fontSize: 26,
                     fontWeight: FontWeight.w600,
@@ -247,12 +247,12 @@ class _ArchivedNoteView extends StatelessWidget {
               ],
               Text(
                 'Archived ${relativeTime(note.updatedAt)}',
-                style: const TextStyle(
+                style: TextStyle(
                     color: NotallyColors.textFaint, fontSize: 13),
               ),
               const SizedBox(height: 20),
               if (note.body.trim().isEmpty)
-                const Text(
+                Text(
                   'No content.',
                   style: TextStyle(
                       color: NotallyColors.textFaint, fontSize: 15),
