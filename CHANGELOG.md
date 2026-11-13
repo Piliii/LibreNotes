@@ -6,6 +6,13 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [1.6.6] — 2026-11-13
+
+### Fixed
+- Linux: the packaged build is now compiled with a pinned Flutter (3.32.2).
+  1.6.5 was built with an unpinned toolchain whose Impeller renderer drew a
+  black or partially painted window on some GPUs.
+
 ## [1.6.5] — 2026-11-12
 
 ### Added

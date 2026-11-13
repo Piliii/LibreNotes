@@ -104,8 +104,11 @@ jobs:
           sudo apt-get install -y ruby ruby-dev rpm
           sudo gem install fpm --no-document -v 1.18.0
 
+      # Pinned: unpinned "stable" shipped an Impeller-on-GL engine that renders
+      # a black/partial window on some machines.
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.32.2'
           channel: stable
 
       - name: Build Linux artifacts
