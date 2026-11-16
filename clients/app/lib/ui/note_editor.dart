@@ -303,6 +303,16 @@ class _NoteEditorState extends State<NoteEditor> {
           onTap: _pickColor,
           color: textColors.faint,
         ),
+        if (!_preview)
+          _ToolButton(
+            icon: Icons.checklist,
+            tooltip: 'Checklist',
+            onTap: () {
+              _bodyCtrl.toggleChecklist();
+              _bodyFocus.requestFocus();
+            },
+            color: textColors.faint,
+          ),
         _ToolButton(
           icon: _preview ? Icons.edit_outlined : Icons.visibility_outlined,
           tooltip: _preview ? 'Edit (Ctrl+E)' : 'Preview (Ctrl+E)',
@@ -356,11 +366,30 @@ class _NoteEditorState extends State<NoteEditor> {
             style: TextStyle(color: textColors.faint, fontSize: 15)),
       );
     }
+    // The builder is handed no position, and the package re-runs it on every
+    // reparse (theme/media changes) without rebuilding us, so a task's index
+    // is the running call count modulo the number of tasks.
+    var seq = 0;
     return Markdown(
       data: text,
       padding: EdgeInsets.zero,
       extensionSet: md.ExtensionSet.gitHubFlavored,
       selectable: true,
+      checkboxBuilder: (checked) {
+        final n = seq++;
+        return Padding(
+          padding: const EdgeInsets.only(right: 6),
+          child: InkResponse(
+            radius: 16,
+            onTap: () => _toggleTask(n, checked),
+            child: Icon(
+              checked ? Icons.check_box : Icons.check_box_outline_blank,
+              size: 20,
+              color: checked ? NotallyColors.accent : textColors.muted,
+            ),
+          ),
+        );
+      },
       // Privacy: never fetch remote images just by opening a note.
       imageBuilder: (uri, title, alt) => Text(
         '🖼 ${(alt ?? '').isEmpty ? uri.toString() : alt}',
@@ -375,6 +404,21 @@ class _NoteEditorState extends State<NoteEditor> {
         if (uri != null && ok.contains(uri.scheme.toLowerCase())) await launchUrl(uri, mode: LaunchMode.externalApplication);
       },
     );
+  }
+
+  /// Flips the [seq]-th Preview checkbox in the note body. Does nothing if
+  /// the source line found doesn't hold the state the checkbox was showing
+  /// (our line scan and the Markdown parser disagreed about what is a task).
+  void _toggleTask(int seq, bool wasChecked) {
+    final text = _bodyCtrl.text;
+    final boxes = taskBoxOffsets(text);
+    if (boxes.isEmpty) return;
+    final at = boxes[seq % boxes.length];
+    if ((text[at] != ' ') != wasChecked) return;
+    setState(() {
+      _bodyCtrl.value = _bodyCtrl.value
+          .replaced(TextRange(start: at, end: at + 1), wasChecked ? ' ' : 'x');
+    });
   }
 
   static String relative(int ms) {

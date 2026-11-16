@@ -35,8 +35,13 @@ void main() {
     test('strips markdown syntax', () {
       expect(
         previewText('# Title\n**bold** and *it* ~~x~~ `c`\n- [x] done\n> q\n[a](http://b)'),
-        'Title bold and it x c done q a',
+        'Title bold and it x c ☑ done q a',
       );
+    });
+
+    test('task items keep their state', () {
+      expect(previewText('- [ ] milk\n1. [X] eggs\n- plain'),
+          '☐ milk ☑ eggs plain');
     });
 
     test('leaves snake_case and escaped markers alone', () {
@@ -56,6 +61,16 @@ void main() {
       expect(previewText(''), '');
       expect(previewText('   \n  '), '');
     });
+  });
+
+  test('expiryRemainingLabel is compact', () {
+    final now = DateTime(2026, 11, 16, 12);
+    String label(Duration d) =>
+        expiryRemainingLabel(now.add(d).millisecondsSinceEpoch, now: now);
+    expect(label(const Duration(seconds: -5)), 'soon');
+    expect(label(const Duration(minutes: 45)), '45m');
+    expect(label(const Duration(hours: 5, minutes: 30)), '5h');
+    expect(label(const Duration(days: 2, hours: 3)), '2d');
   });
 
   group('trashRemainingLabel', () {

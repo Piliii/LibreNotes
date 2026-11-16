@@ -1987,7 +1987,13 @@ class _NoteCardState extends State<_NoteCard>
                         Icon(Icons.hourglass_bottom,
                             size: 12,
                             color: textColors.faint.withValues(alpha: 0.75)),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 2),
+                        Text(
+                          expiryRemainingLabel(widget.note.expiresAt!),
+                          style: NotallyType.caption
+                              .copyWith(color: textColors.faint),
+                        ),
+                        const SizedBox(width: 8),
                       ],
                       Text(
                         relativeTime(widget.note.updatedAt),

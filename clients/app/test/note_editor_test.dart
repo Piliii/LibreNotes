@@ -113,4 +113,21 @@ void main() {
 
     await closeEditor(tester);
   });
+
+  testWidgets('tapping a Preview checkbox toggles that task in the body',
+      (tester) async {
+    final id = await repo.createNote();
+    await repo.updateContent(id, body: '- [ ] milk\n- [ ] eggs\n- [x] tea');
+    await openEditor(tester, id);
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.check_box_outline_blank).at(1));
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.check_box).last);
+    await tester.pump(const Duration(milliseconds: 600)); // past debounce
+
+    expect((await repo.getNote(id))!.body, '- [ ] milk\n- [x] eggs\n- [ ] tea');
+    await closeEditor(tester);
+  });
 }

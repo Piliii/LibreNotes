@@ -69,4 +69,31 @@ void main() {
       expect(enter('hello'), 'hello\n');
     });
   });
+
+  group('checklists', () {
+    String toggle(String text, [int? from, int? to]) {
+      final c = MarkdownEditingController(text: text)
+        ..selection = TextSelection(
+            baseOffset: from ?? text.length, extentOffset: to ?? text.length);
+      c.toggleChecklist();
+      return c.text;
+    }
+
+    test('toggleChecklist adds and removes task markers', () {
+      expect(toggle(''), '- [ ] ');
+      expect(toggle('a\nmilk'), 'a\n- [ ] milk');
+      expect(toggle('  - milk'), '  - [ ] milk');
+      expect(toggle('- [x] milk'), 'milk');
+      // Mixed selection: everything becomes a task, blank lines untouched.
+      expect(toggle('- [ ] a\n\nb', 0), '- [ ] a\n\n- [ ] b');
+      expect(toggle('- [ ] a\n- [x] b', 0), 'a\nb');
+    });
+
+    test('taskBoxOffsets finds tasks outside code fences', () {
+      const text = '- [ ] a\n```\n- [ ] code\n```\n> 1. [x] b\n- [] no';
+      final at = taskBoxOffsets(text);
+      expect(at.map((i) => text[i]), [' ', 'x']);
+      expect(at.first, 3);
+    });
+  });
 }

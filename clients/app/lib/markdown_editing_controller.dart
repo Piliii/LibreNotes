@@ -36,6 +36,36 @@ class MarkdownEditingController extends TextEditingController {
     (RegExp(r'^(_)(?=[^\s_])(.+?)(?<=[^\s_])_(?!\w)'), _Kind.italic),
   ];
 
+  /// Turns the selected lines (or the cursor's line) into `- [ ]` tasks, or
+  /// back to plain text when every one of them already is a task.
+  void toggleChecklist() {
+    final sel = selection.isValid
+        ? selection
+        : TextSelection.collapsed(offset: text.length);
+    final start = sel.start == 0 ? 0 : text.lastIndexOf('\n', sel.start - 1) + 1;
+    var end = text.indexOf('\n', sel.end);
+    if (end < 0) end = text.length;
+    final lines = text.substring(start, end).split('\n');
+    // Blank lines inside a multi-line selection are left alone.
+    bool skip(String l) => lines.length > 1 && l.trim().isEmpty;
+    final allTasks = lines.every((l) => skip(l) || _task.hasMatch(l));
+    final out = lines.map((l) {
+      if (skip(l)) return l;
+      final indent = RegExp(r'^\s*').stringMatch(l)!;
+      final task = _task.firstMatch(l);
+      if (allTasks) return indent + l.substring(task!.end);
+      if (task != null) return l;
+      final list = _list.firstMatch(l);
+      return list != null
+          ? '${list.group(0)}[ ] ${l.substring(list.end)}'
+          : '$indent- [ ] ${l.substring(indent.length)}';
+    }).join('\n');
+    value = TextEditingValue(
+      text: text.replaceRange(start, end, out),
+      selection: TextSelection.collapsed(offset: start + out.length),
+    );
+  }
+
   static const _escapable = r'\`*_{}[]()#+-.!~=|>';
   static const _headingSizes = [28.0, 24.0, 20.0, 18.0, 16.0, 16.0];
 
@@ -220,6 +250,28 @@ class MarkdownEditingController extends TextEditingController {
 }
 
 enum _Kind { code, link, bold, strike, mark, italic }
+
+/// Offset of the state character (the space or `x` inside the brackets) of
+/// every task item in [text], in document order. Fenced code is skipped and
+/// quoted tasks (`> - [ ] x`) count, to match what the Preview renders.
+List<int> taskBoxOffsets(String text) {
+  final task =
+      RegExp(r'^(?:\s*>[ \t]?)*\s*(?:[-*+]|\d+[.)])[ \t]+\[([ xX])\][ \t]');
+  final offsets = <int>[];
+  String? fence;
+  var pos = 0;
+  for (final line in text.split('\n')) {
+    final marker = MarkdownEditingController._fence.firstMatch(line)?.group(1);
+    if (marker != null && (fence == null || marker[0] == fence[0])) {
+      fence = fence == null ? marker : null;
+    } else if (fence == null) {
+      final m = task.firstMatch(line);
+      if (m != null) offsets.add(pos + m.end - 3);
+    }
+    pos += line.length + 1;
+  }
+  return offsets;
+}
 
 /// Enter on a list line continues the list (`- `, `1. ` → next number,
 /// `- [ ] ` stays an unchecked task); Enter on an empty item ends it.

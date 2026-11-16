@@ -40,8 +40,20 @@ String trashRemainingLabel(
   return days == 1 ? '1 day left' : '$days days left';
 }
 
+/// Compact time left before a note self-destructs: "45m", "5h", "2d", or
+/// "soon" once it is (nearly) due.
+String expiryRemainingLabel(int expiresAtMs, {DateTime? now}) {
+  final left = DateTime.fromMillisecondsSinceEpoch(expiresAtMs)
+      .difference(now ?? DateTime.now());
+  if (left.inMinutes < 1) return 'soon';
+  if (left.inHours < 1) return '${left.inMinutes}m';
+  if (left.inDays < 1) return '${left.inHours}h';
+  return '${left.inDays}d';
+}
+
 /// Body flattened to a single line for list/card previews, with Markdown
-/// syntax stripped (heading/quote/list/task markers, emphasis, links, code).
+/// syntax stripped (heading/quote/list markers, emphasis, links, code). Task
+/// items keep their state as a ☐ / ☑ glyph.
 String previewText(String body) {
   // Escaped punctuation (`\*`) is shielded in the private-use area so the
   // emphasis rules below can't see it, then restored.
@@ -51,7 +63,9 @@ String previewText(String body) {
       .replaceAll(RegExp(r'^\s*(```|~~~).*$', multiLine: true), '')
       .replaceAll(RegExp(r'^\s*([-*_])(\s*\1){2,}\s*$', multiLine: true), '')
       .replaceAll(RegExp(r'^\s*(#{1,6}\s+|(>\s?)+)', multiLine: true), '')
-      .replaceAll(RegExp(r'^\s*(?:[-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?', multiLine: true), '')
+      .replaceAllMapped(
+          RegExp(r'^\s*(?:[-*+]|\d+[.)])\s+(?:\[([ xX])\]\s+)?', multiLine: true),
+          (m) => m[1] == null ? '' : (m[1] == ' ' ? '☐ ' : '☑ '))
       .replaceAllMapped(RegExp(r'!?\[([^\]\n]*)\]\([^)\n]*\)'), (m) => m[1]!)
       .replaceAllMapped(RegExp(r'(\*\*|__|~~|==)(?=\S)(.+?)(?<=\S)\1(\^\w+)?'), (m) => m[2]!)
       .replaceAllMapped(RegExp(r'(\*)(?=[^\s*])(.+?)(?<=[^\s*])\*'), (m) => m[2]!)

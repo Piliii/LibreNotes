@@ -6,6 +6,18 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+### Added
+- Checklists: tap a checkbox in Preview to tick it, use the new Checklist
+  toolbar button to turn the current line (or selection) into `- [ ]` tasks,
+  and see ☐ / ☑ state in note cards and list previews.
+- Notes with a self-destruct timer show the time remaining ("5h", "2d") next
+  to the hourglass on their card.
+
+### Changed
+- Note fields written by a newer app version are now kept when an older
+  version edits the note, instead of being dropped. Groundwork for folders;
+  versions before this one still drop them.
+
 ## [1.6.6] — 2026-11-13
 
 ### Fixed
