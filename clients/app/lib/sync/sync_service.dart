@@ -32,6 +32,7 @@ class RemoteNote {
   final bool deleted;
   final bool archived;
   final int? expiresAt;
+  final Map<String, dynamic> extra;
   const RemoteNote({
     required this.title,
     required this.body,
@@ -44,6 +45,7 @@ class RemoteNote {
     required this.deleted,
     this.archived = false,
     this.expiresAt,
+    this.extra = const {},
   });
 }
 
@@ -369,6 +371,7 @@ class SyncService {
       deleted: r.deleted,
       archived: r.archived,
       expiresAt: r.expiresAt,
+      extra: r.extra,
     );
     final lastSeq = int.tryParse(await _repo.kvGet(_kSeq) ?? '0') ?? 0;
     if (r.seq > lastSeq) await _repo.kvSet(_kSeq, r.seq.toString());
@@ -448,6 +451,7 @@ class SyncService {
       deleted: false,
       archived: p['archived'] as bool? ?? false,
       expiresAt: p['expiresAt'] as int?,
+      extra: _extraOf(p),
     );
   }
 
@@ -478,10 +482,19 @@ class SyncService {
       deleted: false,
       archived: p['archived'] as bool? ?? false,
       expiresAt: p['expiresAt'] as int?,
+      extra: _extraOf(p),
     );
   }
 
+  /// The payload keys this build doesn't model; see [NoteRow.extra].
+  static Map<String, dynamic> _extraOf(Map<String, dynamic> p) => Map.of(p)
+    ..removeWhere((k, _) => const {
+          'title', 'body', 'pinned', 'color', 'createdAt', 'updatedAt',
+          'archived', 'expiresAt',
+        }.contains(k));
+
   Map<String, dynamic> _payloadOf(NoteRow n) => {
+        ...n.extra,
         'title': n.title,
         'body': n.body,
         'pinned': n.pinned,

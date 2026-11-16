@@ -25,6 +25,11 @@ class NoteRow {
   final bool archived;
   final int? expiresAt;
 
+  /// Payload keys this build doesn't know (written by a newer client, e.g. a
+  /// folder or tags). Carried along untouched so that editing a note here
+  /// doesn't wipe them for the devices that do understand them.
+  final Map<String, dynamic> extra;
+
   const NoteRow({
     required this.id,
     required this.title,
@@ -40,6 +45,7 @@ class NoteRow {
     required this.dirty,
     required this.archived,
     this.expiresAt,
+    this.extra = const {},
   });
 }
 
@@ -228,6 +234,7 @@ class NotesRepository {
       dirty: row.dirty,
       archived: row.archived,
       expiresAt: row.expiresAt,
+      extra: Map.of(p)..remove('title')..remove('body'),
     );
   }
 
@@ -236,9 +243,10 @@ class NotesRepository {
 
   Future<({Uint8List ciphertext, Uint8List nonce})> _encryptContent(
     String title,
-    String body,
-  ) =>
-      _crypto.encrypt({'title': title, 'body': body});
+    String body, [
+    Map<String, dynamic> extra = const {},
+  ]) =>
+      _crypto.encrypt({...extra, 'title': title, 'body': body});
 
   /// All non-deleted notes (active + archived), for one-shot bulk export.
   /// Trashed notes are excluded — exporting content on its way out feels
@@ -341,6 +349,7 @@ class NotesRepository {
       final enc = await _encryptContent(
         title ?? current?.title ?? '',
         body ?? current?.body ?? '',
+        current?.extra ?? const {},
       );
       contentCiphertext = Value(enc.ciphertext);
       contentNonce = Value(enc.nonce);
@@ -560,8 +569,9 @@ class NotesRepository {
     required bool deleted,
     bool archived = false,
     int? expiresAt,
+    Map<String, dynamic> extra = const {},
   }) async {
-    final enc = await _encryptContent(title, body);
+    final enc = await _encryptContent(title, body, extra);
     await _db.into(_db.notes).insertOnConflictUpdate(
           NotesCompanion.insert(
             id: id,

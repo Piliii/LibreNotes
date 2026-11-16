@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
+import 'package:notally_core/notally_core.dart';
 import 'package:notally_server/api.dart';
 import 'package:notally_server/db.dart';
 
@@ -213,6 +214,31 @@ void main() {
     expect(dev1.sync.status.value.state, SyncState.offline);
     expect(dev1.sync.status.value.lastSyncedAt, syncedAt);
     expect(dev1.sync.pending.value, 1);
+  });
+
+  test('payload keys from a newer client survive an edit on this one',
+      () async {
+    final id = await dev1.write(title: 'Plan', body: 'v1');
+    await dev1.sync.syncNow();
+
+    // A "newer client" rewrites the note with a field this build doesn't know.
+    final crypto = dev1.repo.crypto;
+    final api = SyncApi(baseUrl: baseUrl, token: token);
+    final enc = await crypto.encrypt(
+        {'title': 'Plan', 'body': 'v2', 'folder': 'Work', 'tags': ['a', 'b']});
+    await api.push(id,
+        PushRequest(ciphertext: enc.ciphertext, nonce: enc.nonce, baseRev: 1));
+    api.close();
+
+    await dev2.sync.syncNow();
+    await dev2.repo.updateContent(id, body: 'v3');
+    await dev2.sync.syncNow();
+
+    final stored = serverDb.getNote(id)!;
+    final payload = await crypto.decrypt(stored.ciphertext, stored.nonce);
+    expect(payload['body'], 'v3');
+    expect(payload['folder'], 'Work');
+    expect(payload['tags'], ['a', 'b']);
   });
 
   test('a delete on one device propagates as a tombstone to the other',
