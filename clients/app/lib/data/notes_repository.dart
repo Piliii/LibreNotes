@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
+export '../format.dart' show attachmentLinkPattern;
+
+import '../format.dart';
 import '../sync/note_crypto.dart';
 import 'database.dart';
 
@@ -117,8 +120,114 @@ class NotesRepository {
         ),
       );
     }
+    for (final a in await _db.select(_db.attachments).get()) {
+      final clear = await _crypto.decryptBytes(a.data);
+      await (_db.update(_db.attachments)..where((t) => t.id.equals(a.id)))
+          .write(AttachmentsCompanion(
+              data: Value(await newCrypto.encryptBytes(clear))));
+    }
     _crypto = newCrypto;
+    _imageCache.clear();
     await clearSearchIndex();
+  }
+
+  // ---- Image attachments ---------------------------------------------------
+
+  /// Set by sync: downloads an attachment's encrypted blob from the server
+  /// (null when offline, unconfigured, or missing there).
+  Future<Uint8List?> Function(String id)? fetchRemoteAttachment;
+
+  // ponytail: tiny insertion-ordered cache, evicts oldest; a real LRU if
+  // notes with dozens of images get slow.
+  final _imageCache = <String, Uint8List>{};
+  static const _imageCacheSize = 40;
+
+  /// Encrypts [bytes] (already shrunk) into a new attachment owned by
+  /// [noteId] and returns its id, `<uuid>.<ext>`.
+  Future<String> addImage(String noteId, Uint8List bytes, String ext) async {
+    final id = '${_uuid.v4()}.$ext';
+    await _db.into(_db.attachments).insert(AttachmentsCompanion.insert(
+          id: id,
+          noteId: noteId,
+          data: await _crypto.encryptBytes(bytes),
+        ));
+    _cache(id, bytes);
+    return id;
+  }
+
+  void _cache(String id, Uint8List bytes) {
+    _imageCache.remove(id);
+    _imageCache[id] = bytes;
+    if (_imageCache.length > _imageCacheSize) {
+      _imageCache.remove(_imageCache.keys.first);
+    }
+  }
+
+  /// Decrypted image bytes: from memory, the local store, or (once) the
+  /// server, in that order. A downloaded blob is kept locally, owned by
+  /// [noteId] — the note it was found in. Null if unavailable or undecryptable.
+  Future<Uint8List?> loadImage(String id, String noteId) async {
+    final hit = _imageCache[id];
+    if (hit != null) return hit;
+    try {
+      var row = await (_db.select(_db.attachments)
+            ..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+      var data = row?.data;
+      if (data == null) {
+        data = await fetchRemoteAttachment?.call(id);
+        if (data == null) return null;
+        await _db.into(_db.attachments).insert(
+              AttachmentsCompanion.insert(
+                id: id,
+                noteId: noteId,
+                data: data,
+                uploaded: const Value(true),
+              ),
+              mode: InsertMode.insertOrIgnore,
+            );
+      }
+      final clear = await _crypto.decryptBytes(data);
+      _cache(id, clear);
+      return clear;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Already-decrypted bytes, if in memory (lets widgets skip a loading frame).
+  Uint8List? cachedImage(String id) => _imageCache[id];
+
+  /// Attachments the server doesn't have yet.
+  Future<List<LocalAttachmentRow>> pendingAttachments() =>
+      (_db.select(_db.attachments)..where((t) => t.uploaded.equals(false)))
+          .get();
+
+  Future<void> markAttachmentUploaded(String id) =>
+      (_db.update(_db.attachments)..where((t) => t.id.equals(id)))
+          .write(const AttachmentsCompanion(uploaded: Value(true)));
+
+  /// Every image belongs to exactly one note, so a purge (which deletes the
+  /// note's images on the server) can never take one away from another note.
+  /// A link pasted from note A into [noteId] therefore gets its own copy,
+  /// re-encrypted under a fresh id, and the link in [body] is rewritten.
+  /// Links whose blob isn't on this device yet are left alone.
+  Future<String> _claimAttachments(String noteId, String body) async {
+    final ids = attachmentLinkPattern
+        .allMatches(body)
+        .map((m) => m.group(1)!)
+        .toSet();
+    for (final id in ids) {
+      final row = await (_db.select(_db.attachments)
+            ..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+      if (row == null || row.noteId == noteId) continue;
+      final ext = id.contains('.') ? id.substring(id.lastIndexOf('.') + 1) : 'bin';
+      final copy =
+          await addImage(noteId, await _crypto.decryptBytes(row.data), ext);
+      body = body.replaceAll('(attachment:$id)', '(attachment:$copy)');
+    }
+    return body;
   }
 
   // ---- Local full-text search (FTS5) ---------------------------------------
@@ -361,6 +470,7 @@ class NotesRepository {
     final textChanged = title != null || body != null;
     Value<Uint8List> contentCiphertext = const Value.absent();
     Value<Uint8List> contentNonce = const Value.absent();
+    if (body != null) body = await _claimAttachments(id, body);
     if (textChanged) {
       final current = await getNote(id);
       final enc = await _encryptContent(

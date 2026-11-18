@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:notally_core/notally_core.dart';
 import 'package:shelf/shelf.dart';
@@ -6,7 +7,23 @@ import 'package:shelf_router/shelf_router.dart';
 
 import 'db.dart';
 
+/// Bump only for a *breaking* wire change: clients refuse to sync with a
+/// server whose version is higher than theirs. Additive routes (like
+/// /attachments) keep it as is, so older apps go on syncing.
 const _apiVersion = 1;
+
+/// Bump when the server gains an *additive* feature older apps can't use
+/// (2 = images). Older apps keep syncing; ones from 1.7.0 on show a
+/// dismissible "update the app" notice. Keep in lockstep with
+/// `SyncApi.featureLevel` in the client.
+const _featureLevel = 2;
+
+/// Largest accepted attachment upload. Clients cap images at 10 MB before
+/// encryption; this leaves headroom for the nonce and auth tag.
+const maxAttachmentBytes = 15 * 1024 * 1024;
+
+/// Attachment and note ids are client-generated (`<uuid>.<ext>` / uuid).
+final _idPattern = RegExp(r'^[A-Za-z0-9-]{1,64}(\.[A-Za-z0-9]{1,8})?$');
 
 /// Builds the Notally HTTP API. [token] gates every route except `/health`.
 Handler buildApi(NotesDb db, String token) {
@@ -60,6 +77,37 @@ Handler buildApi(NotesDb db, String token) {
     );
   });
 
+  // Encrypted image blob, bound to the note that owns it (`?note=<id>`).
+  router.put('/attachments/<id>', (Request req, String id) async {
+    final noteId = req.url.queryParameters['note'] ?? '';
+    if (!_idPattern.hasMatch(id) || !_idPattern.hasMatch(noteId)) {
+      return _json({'error': 'invalid id'}, status: 400);
+    }
+    final declared = req.contentLength;
+    if (declared != null && declared > maxAttachmentBytes) {
+      return _json({'error': 'attachment too large'}, status: 413);
+    }
+    final body = BytesBuilder(copy: false);
+    await for (final chunk in req.read()) {
+      body.add(chunk);
+      if (body.length > maxAttachmentBytes) {
+        return _json({'error': 'attachment too large'}, status: 413);
+      }
+    }
+    if (body.isEmpty) return _json({'error': 'empty body'}, status: 400);
+    db.putAttachment(id, noteId, body.takeBytes());
+    return _json({'ok': true});
+  });
+
+  router.get('/attachments/<id>', (Request _, String id) {
+    final data = db.getAttachment(id);
+    if (data == null) return _json({'error': 'not found'}, status: 404);
+    return Response.ok(
+      data,
+      headers: {'content-type': 'application/octet-stream'},
+    );
+  });
+
   // Encrypted key bundle (wrapped DEK + KDF salt/params).
   router.get('/keystore', (Request _) {
     final ks = db.getKeystore();
@@ -95,6 +143,7 @@ Middleware _versionMiddleware() {
       final response = await inner(req);
       return response.change(headers: {
         'x-librenotes-api-version': '$_apiVersion',
+        'x-librenotes-feature-level': '$_featureLevel',
       });
     };
   };

@@ -194,6 +194,12 @@ in either file.
   `server/lib/api.dart` and `clients/app/lib/sync/sync_api.dart` too, in
   lockstep, whenever the wire protocol itself changes (not just the server's
   internals) — that's what actually drives `VersionMismatchException`.
+  Only a *breaking* wire change bumps `_apiVersion` (it locks older apps
+  out). An additive server feature bumps `_featureLevel` in `server/lib/api.dart`
+  and `SyncApi.featureLevel` in lockstep instead: older apps keep syncing and
+  (from 1.7.0) show a dismissible "update the app" notice. New clients must
+  also tolerate an older server (e.g. treat a 404 on a new route as
+  "not supported yet").
 - **Releasing:** write the notes under `## [Unreleased]` in `CHANGELOG.md`, run
   `scripts/bump-version.sh X.Y.Z` (bumps `clients/app/pubspec.yaml` incl. the
   `+N` code, dates the changelog section, generates the F-Droid

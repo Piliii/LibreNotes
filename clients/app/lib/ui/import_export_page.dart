@@ -87,8 +87,9 @@ class _ImportExportPageState extends State<ImportExportPage> {
         final sub = note.folder.isEmpty ? '' : '${_safe(note.folder)}/';
         if (sub.isNotEmpty) await Directory('$dir/$sub').create();
         final name = sub + _fileNameFor(note, usedNames, sub);
+        final body = await _exportImages(note, dir, sub.isEmpty ? '' : '../');
         final content =
-            note.title.isEmpty ? note.body : '# ${note.title}\n\n${note.body}';
+            note.title.isEmpty ? body : '# ${note.title}\n\n$body';
         await File('$dir/$name')
             .writeAsString(frontMatter(note.folder, note.tags) + content);
       }
@@ -118,6 +119,22 @@ class _ImportExportPageState extends State<ImportExportPage> {
       suffix++;
     }
     return name;
+  }
+
+  /// Writes the note's images (decrypted) to `<dir>/attachments/` and
+  /// points its links at those files. An image that isn't on this device
+  /// keeps its `attachment:` link.
+  Future<String> _exportImages(NoteRow note, String dir, String up) async {
+    var body = note.body;
+    for (final m in attachmentLinkPattern.allMatches(note.body)) {
+      final id = m.group(1)!;
+      final bytes = await widget.repo.loadImage(id, note.id);
+      if (bytes == null) continue;
+      await Directory('$dir/attachments').create();
+      await File('$dir/attachments/$id').writeAsBytes(bytes);
+      body = body.replaceAll('(attachment:$id)', '(${up}attachments/$id)');
+    }
+    return body;
   }
 
   static String _safe(String s) {

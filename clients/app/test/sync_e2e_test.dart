@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
@@ -189,6 +190,37 @@ void main() {
     });
   });
 
+  test('a newer server feature level shows a dismissible notice and never '
+      'blocks sync', () async {
+    var level = '${SyncApi.featureLevel + 1}';
+    final srv = await shelf_io.serve(
+      (Request r) async => (await buildApi(serverDb, token)(r))
+          .change(headers: {'x-librenotes-feature-level': level}),
+      'localhost',
+      0,
+    );
+    addTearDown(() => srv.close(force: true));
+    final dev =
+        await _Device.connect('http://localhost:${srv.port}', token, passphrase);
+    addTearDown(dev.dispose);
+
+    expect(dev.sync.status.value.state, SyncState.ok);
+    expect(dev.sync.updateNotice.value, SyncApi.featureLevel + 1);
+
+    await dev.sync.dismissUpdateNotice();
+    await dev.sync.syncNow();
+    expect(dev.sync.updateNotice.value, isNull, reason: 'dismissal sticks');
+
+    level = '${SyncApi.featureLevel + 2}';
+    await dev.sync.syncNow();
+    expect(dev.sync.updateNotice.value, SyncApi.featureLevel + 2,
+        reason: 'an even newer level shows it again');
+  });
+
+  test('no notice when the server is not ahead', () async {
+    expect(dev1.sync.updateNotice.value, isNull);
+  });
+
   test('status tracks last-synced time and pending local edits', () async {
     expect(dev1.sync.status.value.lastSyncedAt, isNotNull);
     expect(dev1.sync.pending.value, 0);
@@ -251,6 +283,78 @@ void main() {
     final n = (await dev2.repo.getNote(id))!;
     expect(n.folder, 'Travel');
     expect(n.tags, ['summer', 'todo']);
+  });
+
+  test('an image travels encrypted; purging its note removes it from the '
+      'server but not from the other device', () async {
+    final img = Uint8List.fromList(List.generate(500, (i) => i % 251));
+    final id = await dev1.repo.createNote();
+    final att = await dev1.repo.addImage(id, img, 'png');
+    await dev1.repo.updateContent(id, body: '![](attachment:$att)');
+    await dev1.sync.syncNow();
+
+    final stored = serverDb.getAttachment(att)!;
+    expect(stored, isNot(contains(img)), reason: 'server sees ciphertext');
+
+    await dev2.sync.syncNow();
+    expect(await dev2.repo.loadImage(att, id), img);
+
+    await dev1.repo.deleteNote(id);
+    await dev1.repo.markForPurge(id);
+    await dev1.sync.syncNow();
+    expect(serverDb.getAttachment(att), isNull);
+
+    await dev2.sync.syncNow();
+    expect(await dev2.repo.getNote(id), isNull);
+    expect(await dev2.repo.loadImage(att, id), img, reason: 'local copy kept');
+  });
+
+  test('a server without image support still syncs notes; images wait',
+      () async {
+    // Simulates a pre-images server: /attachments is an unknown route.
+    final old = await shelf_io.serve(
+      (Request r) => r.url.path.startsWith('attachments')
+          ? Response.notFound('Route not found')
+          : buildApi(serverDb, token)(r),
+      'localhost',
+      0,
+    );
+    addTearDown(() => old.close(force: true));
+    final dev = await _Device.connect(
+        'http://localhost:${old.port}', token, passphrase);
+    addTearDown(dev.dispose);
+
+    final id = await dev.repo.createNote();
+    final att = await dev.repo.addImage(id, Uint8List.fromList([9]), 'png');
+    await dev.repo.updateContent(id, body: '![](attachment:$att)');
+    await dev.sync.syncNow();
+
+    expect(dev.sync.status.value.state, SyncState.ok);
+    expect((await dev.repo.getNote(id))!.dirty, isFalse);
+    expect((await dev.repo.pendingAttachments()).map((a) => a.id), [att]);
+  });
+
+  test('a pasted image link gets its own copy, so purging the source note '
+      'leaves it intact', () async {
+    final img = Uint8List.fromList([1, 2, 3, 4]);
+    final a = await dev1.repo.createNote();
+    final att = await dev1.repo.addImage(a, img, 'png');
+    await dev1.repo.updateContent(a, body: '![](attachment:$att)');
+    final b = await dev1.repo.createNote();
+    await dev1.repo.updateContent(b, body: 'see ![](attachment:$att)');
+
+    final bodyB = (await dev1.repo.getNote(b))!.body;
+    final copy = attachmentLinkPattern.firstMatch(bodyB)!.group(1)!;
+    expect(copy, isNot(att));
+    await dev1.sync.syncNow();
+
+    await dev1.repo.deleteNote(a);
+    await dev1.repo.markForPurge(a);
+    await dev1.sync.syncNow();
+    expect(serverDb.getAttachment(att), isNull);
+    expect(serverDb.getAttachment(copy), isNotNull);
+    await dev2.sync.syncNow();
+    expect(await dev2.repo.loadImage(copy, b), img);
   });
 
   test('a delete on one device propagates as a tombstone to the other',

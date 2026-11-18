@@ -20,6 +20,24 @@ plain semver-ish tags (`vX.Y.Z`).
   version before you use them:** older versions drop folders and tags when
   they save an edit.
 
+- Images in notes: add them with the Insert image button, by dragging files
+  onto the editor (desktop and web), by pasting with Ctrl+V or from an Android
+  keyboard, or by sharing images to LibreNotes from another Android app.
+  Images show inline in both Edit and Preview, and the link behind them stays
+  hidden (right-click or long-press an image to copy its link, save it, or
+  remove it). Big images are shrunk to at most 2048 px, and every image is
+  re-encoded so location and camera data never leave the device. Images are
+  encrypted like notes. Emptying a note from the trash deletes its images
+  from the server too, but each device keeps its own copy. Export writes
+  images to an `attachments/` folder next to the notes.
+- When your sync server supports features this app version doesn't, a
+  banner suggests updating the app. It never blocks syncing or editing, and
+  Dismiss hides it until the server gains something newer. Versions before
+  this one can't show the notice.
+- Server 0.2.0 adds image storage. Older apps keep syncing with it, and this
+  app keeps syncing notes with an older server; images upload once the
+  server is upgraded.
+
 ### Changed
 - Note fields written by a newer app version are now kept when an older
   version edits the note, instead of being dropped. Groundwork for folders;

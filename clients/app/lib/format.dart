@@ -1,5 +1,10 @@
 // Small presentation helpers shared across the UI.
 
+/// Matches an embedded image, `![alt](attachment:<id>)`; group 1 is the id.
+/// The link is storage detail only: the UI always shows the image instead.
+final attachmentLinkPattern =
+    RegExp(r'!\[[^\]\n]*\]\(attachment:([A-Za-z0-9.-]+)\)');
+
 /// A compact, human "time ago" for note timestamps (ms since epoch).
 String relativeTime(int ms) {
   final now = DateTime.now();
@@ -66,6 +71,7 @@ String previewText(String body) {
       .replaceAllMapped(
           RegExp(r'^\s*(?:[-*+]|\d+[.)])\s+(?:\[([ xX])\]\s+)?', multiLine: true),
           (m) => m[1] == null ? '' : (m[1] == ' ' ? '☐ ' : '☑ '))
+      .replaceAll(attachmentLinkPattern, '🖼 ')
       .replaceAllMapped(RegExp(r'!?\[([^\]\n]*)\]\([^)\n]*\)'), (m) => m[1]!)
       .replaceAllMapped(RegExp(r'(\*\*|__|~~|==)(?=\S)(.+?)(?<=\S)\1(\^\w+)?'), (m) => m[2]!)
       .replaceAllMapped(RegExp(r'(\*)(?=[^\s*])(.+?)(?<=[^\s*])\*'), (m) => m[2]!)

@@ -61,7 +61,15 @@ class SyncConflict {
 /// conflict bookkeeping. All crypto happens here on the client; the server only
 /// ever sees ciphertext.
 class SyncService {
-  SyncService(this._repo);
+  SyncService(this._repo) {
+    _repo.fetchRemoteAttachment = (id) async {
+      try {
+        return await _api?.getAttachment(id);
+      } catch (_) {
+        return null; // offline/unreachable: the UI shows a placeholder
+      }
+    };
+  }
 
   final NotesRepository _repo;
 
@@ -72,6 +80,30 @@ class SyncService {
   final ValueNotifier<SyncStatus> status =
       ValueNotifier(const SyncStatus(SyncState.notConfigured));
   final ValueNotifier<List<SyncConflict>> conflicts = ValueNotifier(const []);
+
+  /// Set to the server's feature level when it's newer than this app's and
+  /// the user hasn't dismissed that level yet: the UI shows an "update the
+  /// app" notice. Never blocks anything.
+  final ValueNotifier<int?> updateNotice = ValueNotifier(null);
+  static const _kNoticeDismissed = 'notice.dismissedFeatureLevel';
+
+  Future<void> _checkFeatureLevel(SyncApi api) async {
+    final level = api.serverFeatureLevel;
+    if (level == null || level <= SyncApi.featureLevel) {
+      updateNotice.value = null;
+      return;
+    }
+    final dismissed =
+        int.tryParse(await _repo.kvGet(_kNoticeDismissed) ?? '') ?? 0;
+    updateNotice.value = level > dismissed ? level : null;
+  }
+
+  /// Hides the notice until the server reports an even newer level.
+  Future<void> dismissUpdateNotice() async {
+    final level = updateNotice.value;
+    updateNotice.value = null;
+    if (level != null) await _repo.kvSet(_kNoticeDismissed, '$level');
+  }
 
   /// Local edits not yet accepted by the server (excludes blank never-synced
   /// notes, which are never pushed). Kept current on every edit and sync round.
@@ -280,7 +312,19 @@ class SyncService {
       }
       await _repo.kvSet(_kSeq, resp.latestSeq.toString());
 
-      // 2) Push
+      // 2) Push. Images first, so no device ever pulls a note whose image
+      // the server doesn't have yet.
+      // A server from before images 404s the route: keep the images
+      // pending (they go up once the server is upgraded) and sync the notes
+      // anyway, so a newer app never stops syncing against an older server.
+      try {
+        for (final a in await _repo.pendingAttachments()) {
+          await api.putAttachment(a.id, a.noteId, a.data);
+          await _repo.markAttachmentUploaded(a.id);
+        }
+      } on SyncException catch (e) {
+        if (e.status != 404) rethrow;
+      }
       for (final note in await _repo.dirtyNotes()) {
         if (_hasConflict(note.id)) continue;
 
@@ -331,6 +375,7 @@ class SyncService {
         }
       }
 
+      await _checkFeatureLevel(api);
       status.value = SyncStatus(
         conflicts.value.isEmpty ? SyncState.ok : SyncState.error,
         message: conflicts.value.isEmpty

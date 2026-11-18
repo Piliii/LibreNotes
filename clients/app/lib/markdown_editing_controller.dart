@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'format.dart';
 import 'theme.dart';
 
 /// A [TextEditingController] that styles its own Markdown as you type:
@@ -14,6 +15,94 @@ import 'theme.dart';
 /// ==highlight==, `inline code`, links and images.
 class MarkdownEditingController extends TextEditingController {
   MarkdownEditingController({super.text});
+
+  /// Builds the widget shown in place of an embedded image's link
+  /// (`![](attachment:<id>)`). When set, the link text is never visible:
+  /// it renders as this widget plus zero-size text (so the spans still
+  /// concatenate to exactly [text]), the caret can't stop inside it, and one
+  /// Backspace/Delete removes the whole link. See [_guardEmbeds].
+  Widget Function(String id)? imageEmbed;
+
+  @override
+  set value(TextEditingValue newValue) {
+    super.value =
+        imageEmbed == null ? newValue : _guardEmbeds(super.value, newValue);
+  }
+
+  /// Keeps embedded images atomic: a deletion that cuts into a link removes
+  /// the whole link, and a caret or selection end that lands inside one is
+  /// moved to its edge (in the direction it was travelling).
+  static TextEditingValue _guardEmbeds(
+      TextEditingValue old, TextEditingValue now) {
+    if (old.text != now.text) {
+      final a = old.text, b = now.text;
+      var p = 0;
+      while (p < a.length && p < b.length && a[p] == b[p]) {
+        p++;
+      }
+      var s = 0;
+      while (s < a.length - p && s < b.length - p &&
+          a[a.length - 1 - s] == b[b.length - 1 - s]) {
+        s++;
+      }
+      var delStart = p, delEnd = a.length - s;
+      if (delEnd > delStart) {
+        for (final m in attachmentLinkPattern.allMatches(a)) {
+          final cuts = m.start < delEnd && m.end > delStart;
+          final whole = m.start >= delStart && m.end <= delEnd;
+          if (cuts && !whole) {
+            if (m.start < delStart) delStart = m.start;
+            if (m.end > delEnd) delEnd = m.end;
+          }
+        }
+        if (delStart != p || delEnd != a.length - s) {
+          final inserted = b.substring(p, b.length - s);
+          return TextEditingValue(
+            text: a.replaceRange(delStart, delEnd, inserted),
+            selection: TextSelection.collapsed(
+                offset: delStart + inserted.length),
+          );
+        }
+      }
+    }
+    final sel = now.selection;
+    if (!sel.isValid) return now;
+    final runs = attachmentLinkPattern.allMatches(now.text).toList();
+    if (runs.isEmpty) return now;
+    int snap(int off, int from) {
+      for (final m in runs) {
+        if (off <= m.start || off >= m.end) continue;
+        if (from <= m.start) return m.end;
+        if (from >= m.end) return m.start;
+        return off - m.start < m.end - off ? m.start : m.end;
+      }
+      return off;
+    }
+
+    // The extent snaps the way it was travelling; with no known previous
+    // position, a collapsed caret goes to the nearer edge and a selection
+    // end grows outward.
+    final moved = old.selection.isValid &&
+        old.selection.extentOffset != sel.extentOffset;
+    final extent = snap(
+      sel.extentOffset,
+      moved
+          ? old.selection.extentOffset
+          : sel.isCollapsed
+              ? sel.extentOffset
+              : (sel.extentOffset > sel.baseOffset ? -1 : now.text.length + 1),
+    );
+    // A selection's anchor snaps outward, so the image is fully included.
+    final base = sel.isCollapsed
+        ? extent
+        : snap(sel.baseOffset,
+            sel.baseOffset < sel.extentOffset ? now.text.length + 1 : -1);
+    if (base == sel.baseOffset && extent == sel.extentOffset) return now;
+    return now.copyWith(
+      selection: sel.copyWith(baseOffset: base, extentOffset: extent),
+      composing: TextRange.empty,
+    );
+  }
 
   static final _heading = RegExp(r'^(#{1,6})([ \t]+)');
   static final _quote = RegExp(r'^(\s*>[ \t]?)+');
@@ -190,6 +279,28 @@ class MarkdownEditingController extends TextEditingController {
       }
       // `_` inside a word (snake_case) isn't emphasis.
       final intraword = c == '_' && i > 0 && RegExp(r'\w').hasMatch(content[i - 1]);
+      if (c == '!' && imageEmbed != null) {
+        final m = attachmentLinkPattern.matchAsPrefix(content, i);
+        if (m != null) {
+          flush();
+          spans.add(WidgetSpan(
+            alignment: PlaceholderAlignment.bottom,
+            child: imageEmbed!(m.group(1)!),
+          ));
+          spans.add(TextSpan(
+            text: m.group(0)!.substring(1),
+            style: const TextStyle(
+              fontSize: 0.01,
+              height: 1,
+              letterSpacing: 0,
+              color: Colors.transparent,
+              decoration: TextDecoration.none,
+            ),
+          ));
+          i = m.end;
+          continue;
+        }
+      }
       if (!intraword && '`![*_~='.contains(c)) {
         final rest = content.substring(i);
         for (final (re, kind) in _inline) {

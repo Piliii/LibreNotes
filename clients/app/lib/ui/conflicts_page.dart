@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../format.dart';
 import '../line_diff.dart';
+import '../markdown_editing_controller.dart';
 import '../sync/sync_service.dart';
 import '../theme.dart';
 
@@ -254,7 +255,7 @@ class _DiffView extends StatelessWidget {
                         DiffOp.removed => '− ',
                         DiffOp.added => '+ ',
                         DiffOp.same => '  ',
-                      }}${l.text}',
+                      }}${l.text.replaceAll(attachmentLinkPattern, '🖼 image')}',
                       style: TextStyle(
                           fontFamily: 'monospace',
                           fontSize: 12,
@@ -288,9 +289,15 @@ class _MergePage extends StatefulWidget {
 
 class _MergePageState extends State<_MergePage> {
   late final _title = TextEditingController(text: widget.conflict.local.title);
-  late final _body = TextEditingController(
+  // Embedded images show as a chip, never as their raw link.
+  late final _body = MarkdownEditingController(
       text: mergeWithMarkers(
-          widget.conflict.local.body, widget.conflict.remote.body));
+          widget.conflict.local.body, widget.conflict.remote.body))
+    ..imageEmbed = (_) => const Chip(
+          avatar: Icon(Icons.image_outlined, size: 16),
+          label: Text('image'),
+          visualDensity: VisualDensity.compact,
+        );
   bool _saving = false;
 
   @override

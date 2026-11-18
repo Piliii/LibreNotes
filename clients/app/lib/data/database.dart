@@ -82,6 +82,21 @@ class Notes extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// Encrypted image blobs (`nonce || ciphertext || tag`, see
+/// `NoteCrypto.encryptBytes`). Each belongs to exactly one note
+/// ([noteId]); a note body references it as `![](attachment:<id>)`.
+/// [uploaded] is false until the sync server has a copy.
+@DataClassName('LocalAttachmentRow')
+class Attachments extends Table {
+  TextColumn get id => text()(); // `<uuid>.<ext>`
+  TextColumn get noteId => text()();
+  BlobColumn get data => blob()();
+  BoolColumn get uploaded => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// Simple key/value store for sync state (server URL, bearer token, the `seq`
 /// cursor, and the wrapped keystore). One row per key.
 class SyncKv extends Table {
@@ -92,13 +107,13 @@ class SyncKv extends Table {
   Set<Column> get primaryKey => {key};
 }
 
-@DriftDatabase(tables: [Notes, SyncKv])
+@DriftDatabase(tables: [Notes, SyncKv, Attachments])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_open());
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -198,6 +213,11 @@ class AppDatabase extends _$AppDatabase {
               await m.database.customStatement('ALTER TABLE notes DROP COLUMN body');
             }
             await m.database.customStatement('PRAGMA user_version = 6');
+          }
+          // v6 → v7: encrypted image attachments.
+          if (from < 7) {
+            await m.createTable(attachments);
+            await m.database.customStatement('PRAGMA user_version = 7');
           }
         },
       );

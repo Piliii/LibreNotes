@@ -130,6 +130,7 @@ void main() {
     test('X-Librenotes-Api-Version: 1 is present on /health', () async {
       final r = await http.get(u('/health'));
       expect(r.headers['x-librenotes-api-version'], '1');
+      expect(r.headers['x-librenotes-feature-level'], isNotNull);
     });
 
     test('version header is present on successful authenticated responses',
@@ -187,6 +188,37 @@ void main() {
       final r = await http.put(u('/keystore'),
           headers: auth, body: jsonEncode({'wrappedDek': 5}));
       expect(r.statusCode, 400);
+    });
+  });
+
+  group('attachments', () {
+    test('upload then download returns the same bytes', () async {
+      final put = await http.put(u('/attachments/abc-1.png?note=n1'),
+          headers: auth, body: [1, 2, 3]);
+      expect(put.statusCode, 200);
+      final get = await http.get(u('/attachments/abc-1.png'), headers: auth);
+      expect(get.statusCode, 200);
+      expect(get.bodyBytes, [1, 2, 3]);
+    });
+
+    test('missing attachment is 404, bad ids are 400', () async {
+      expect((await http.get(u('/attachments/nope.png'), headers: auth))
+          .statusCode, 404);
+      expect((await http.put(u('/attachments/a..b?note=n1'),
+              headers: auth, body: [1]))
+          .statusCode, 400);
+      expect((await http.put(u('/attachments/a.png'), headers: auth, body: [1]))
+          .statusCode, 400);
+    });
+
+    test('oversized upload is 413', () async {
+      final r = await http.put(u('/attachments/big.png?note=n1'),
+          headers: auth, body: List.filled(maxAttachmentBytes + 1, 0));
+      expect(r.statusCode, 413);
+    });
+
+    test('attachments need the token', () async {
+      expect((await http.get(u('/attachments/x.png'))).statusCode, 401);
     });
   });
 }

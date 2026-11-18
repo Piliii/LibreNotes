@@ -52,7 +52,37 @@ class NotesDb {
         kdf_par      INTEGER NOT NULL
       );
     ''');
+    // Encrypted images. `data` is opaque (the client's nonce + ciphertext);
+    // `note_id` binds each blob to the one note that owns it so a purge can
+    // take its images along. The server already sees note ids, so this
+    // reveals nothing new.
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS attachments (
+        id         TEXT    PRIMARY KEY,
+        note_id    TEXT    NOT NULL,
+        data       BLOB    NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+    ''');
+    db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_attachments_note ON attachments(note_id);',
+    );
     return NotesDb._(db);
+  }
+
+  /// Stores an attachment. Attachments are immutable, so a repeat upload of
+  /// the same id (e.g. a retried request) is a no-op.
+  void putAttachment(String id, String noteId, Uint8List data) {
+    _db.execute(
+      'INSERT OR IGNORE INTO attachments(id, note_id, data, created_at) '
+      'VALUES (?, ?, ?, ?);',
+      [id, noteId, data, DateTime.now().millisecondsSinceEpoch],
+    );
+  }
+
+  Uint8List? getAttachment(String id) {
+    final r = _db.select('SELECT data FROM attachments WHERE id = ?;', [id]);
+    return r.isEmpty ? null : r.first['data'] as Uint8List;
   }
 
   void close() => _db.dispose();
@@ -196,6 +226,7 @@ class NotesDb {
   /// trash, the intent is unambiguous.
   void purge(String id) {
     _inTransaction(() {
+      _db.execute('DELETE FROM attachments WHERE note_id = ?;', [id]);
       final existing = getNote(id);
       final seq = _nextSeq();
       final now = DateTime.now().millisecondsSinceEpoch;

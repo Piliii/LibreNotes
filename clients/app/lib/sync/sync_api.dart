@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:notally_core/notally_core.dart';
@@ -117,6 +118,36 @@ class SyncApi {
     _ensure2xx(r);
   }
 
+  /// Images can be several MB over a slow link; give them longer.
+  static const _blobTimeout = Duration(seconds: 120);
+
+  /// Uploads an encrypted image blob owned by [noteId]. Idempotent.
+  Future<void> putAttachment(String id, String noteId, List<int> data) async {
+    final r = await _client.put(
+      Uri.parse('$baseUrl/attachments/${Uri.encodeComponent(id)}'
+          '?note=${Uri.encodeQueryComponent(noteId)}'),
+      headers: {
+        'authorization': 'Bearer $token',
+        'content-type': 'application/octet-stream',
+      },
+      body: data,
+    ).timeout(_blobTimeout);
+    _checkVersion(r);
+    _ensure2xx(r);
+  }
+
+  /// The encrypted image blob, or null if the server doesn't have it.
+  Future<Uint8List?> getAttachment(String id) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/attachments/${Uri.encodeComponent(id)}'),
+      headers: _headers,
+    ).timeout(_blobTimeout);
+    if (r.statusCode == 404) return null;
+    _checkVersion(r);
+    _ensure2xx(r);
+    return r.bodyBytes;
+  }
+
   void close() => _client.close();
 
   Map<String, dynamic> _decode(http.Response r) =>
@@ -126,7 +157,16 @@ class SyncApi {
     if (r.statusCode ~/ 100 != 2) throw SyncException(r.statusCode, r.body);
   }
 
+  /// Features this build knows (2 = images); see the server's
+  /// `_featureLevel`. A higher server level only triggers a notice.
+  static const int featureLevel = 2;
+
+  /// The feature level the server last reported (null: not yet / too old).
+  int? serverFeatureLevel;
+
   void _checkVersion(http.Response r) {
+    final f = int.tryParse(r.headers['x-librenotes-feature-level'] ?? '');
+    if (f != null) serverFeatureLevel = f;
     final v = r.headers['x-librenotes-api-version'];
     if (v == null) return; // old server without the header — tolerate gracefully
     final serverVersion = int.tryParse(v);

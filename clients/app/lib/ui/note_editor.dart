@@ -1,4 +1,10 @@
 import 'dart:async';
+import 'dart:io' show Platform;
+
+import 'package:desktop_drop/desktop_drop.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:pasteboard/pasteboard.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,8 +14,10 @@ import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/notes_repository.dart';
+import '../image_prep.dart';
 import '../markdown_editing_controller.dart';
 import '../theme.dart';
+import 'attachment_image.dart';
 
 /// The editing surface (title + plain-text body) with ~500 ms debounced autosave.
 class NoteEditor extends StatefulWidget {
@@ -59,6 +67,7 @@ class _NoteEditorState extends State<NoteEditor> {
     super.initState();
     _titleCtrl.addListener(_onChanged);
     _bodyCtrl.addListener(_onChanged);
+    _bodyCtrl.imageEmbed = _image;
     _subscribe();
   }
 
@@ -148,6 +157,95 @@ class _NoteEditorState extends State<NoteEditor> {
     widget.onEdited?.call();
   }
 
+  // ---- Images --------------------------------------------------------------
+
+  Widget _image(String id) => AttachmentImage(
+        key: ValueKey('img-$id'),
+        repo: widget.repo,
+        noteId: widget.noteId,
+        id: id,
+        onRemove: () => _removeImage(id),
+      );
+
+  void _removeImage(String id) {
+    final link = RegExp(
+        r'!\[[^\]\n]*\]\(attachment:' + RegExp.escape(id) + r'\)\n?');
+    final m = link.firstMatch(_bodyCtrl.text);
+    if (m == null) return;
+    _bodyCtrl.value = TextEditingValue(
+      text: _bodyCtrl.text.replaceRange(m.start, m.end, ''),
+      selection: TextSelection.collapsed(offset: m.start),
+    );
+  }
+
+  /// Shrinks, encrypts and stores [raw], then puts it on its own line at the
+  /// caret (or at the end, in Preview).
+  Future<void> _insertImage(Uint8List raw) async {
+    final PreparedImage img;
+    try {
+      img = await prepareImage(raw);
+    } on ImagePrepException catch (e) {
+      _snack(e.message);
+      return;
+    }
+    final id = await widget.repo.addImage(widget.noteId, img.bytes, img.ext);
+    if (!mounted) return;
+    final v = _bodyCtrl.value;
+    final sel = v.selection.isValid
+        ? v.selection
+        : TextSelection.collapsed(offset: v.text.length);
+    final before = v.text.substring(0, sel.start);
+    final after = v.text.substring(sel.end);
+    final ins = '${before.isEmpty || before.endsWith('\n') ? '' : '\n'}'
+        '![](attachment:$id)'
+        '${after.startsWith('\n') ? '' : '\n'}';
+    _bodyCtrl.value = TextEditingValue(
+      text: before + ins + after,
+      selection: TextSelection.collapsed(offset: before.length + ins.length),
+    );
+  }
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)
+        ?.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _pickImages() async {
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: true,
+      withData: true,
+    );
+    for (final f in picked?.files ?? const <PlatformFile>[]) {
+      if (f.bytes != null) await _insertImage(f.bytes!);
+    }
+  }
+
+  /// Ctrl+V in the body: an image on the clipboard is embedded, anything
+  /// else pastes as text.
+  Future<void> _paste() async {
+    Uint8List? image;
+    try {
+      image = await Pasteboard.image;
+    } catch (_) {}
+    if (image != null && image.isNotEmpty) return _insertImage(image);
+    final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+    if (text == null || text.isEmpty || !mounted) return;
+    final v = _bodyCtrl.value;
+    final sel = v.selection.isValid
+        ? v.selection
+        : TextSelection.collapsed(offset: v.text.length);
+    _bodyCtrl.value = TextEditingValue(
+      text: v.text.replaceRange(sel.start, sel.end, text),
+      selection: TextSelection.collapsed(offset: sel.start + text.length),
+    );
+  }
+
+  static bool get _dropSupported =>
+      kIsWeb || Platform.isLinux || Platform.isWindows || Platform.isMacOS;
+  bool _dragging = false;
+
   Future<void> _pickColor() async {
     final hex = await showDialog<String>(
       context: context,
@@ -215,7 +313,37 @@ class _NoteEditorState extends State<NoteEditor> {
         const SingleActivator(LogicalKeyboardKey.delete,
             control: true, shift: true): _trash,
       },
-      child: _editorBody(textColors),
+      child: !_dropSupported
+          ? _editorBody(textColors)
+          : DropTarget(
+              onDragEntered: (_) => setState(() => _dragging = true),
+              onDragExited: (_) => setState(() => _dragging = false),
+              onDragDone: (d) async {
+                setState(() => _dragging = false);
+                for (final f in d.files) {
+                  await _insertImage(await f.readAsBytes());
+                }
+              },
+              child: Stack(children: [
+                Positioned.fill(child: _editorBody(textColors)),
+                if (_dragging)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                              color: NotallyColors.accent, width: 2),
+                          color: NotallyColors.accent.withValues(alpha: 0.06),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text('Drop image to add it',
+                            style: TextStyle(
+                                color: NotallyColors.accent, fontSize: 16)),
+                      ),
+                    ),
+                  ),
+              ]),
+            ),
     );
   }
 
@@ -435,6 +563,12 @@ class _NoteEditorState extends State<NoteEditor> {
             color: textColors.faint,
           ),
         _ToolButton(
+          icon: Icons.image_outlined,
+          tooltip: 'Insert image',
+          onTap: _pickImages,
+          color: textColors.faint,
+        ),
+        _ToolButton(
           icon: _preview ? Icons.edit_outlined : Icons.visibility_outlined,
           tooltip: _preview ? 'Edit (Ctrl+E)' : 'Preview (Ctrl+E)',
           active: _preview,
@@ -462,9 +596,26 @@ class _NoteEditorState extends State<NoteEditor> {
   }
 
   Widget _editBody(NoteTextColors textColors) {
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyV, control: true): _paste,
+      },
+      child: _bodyField(textColors),
+    );
+  }
+
+  Widget _bodyField(NoteTextColors textColors) {
     return TextField(
       controller: _bodyCtrl,
       focusNode: _bodyFocus,
+      // Images inserted from an Android keyboard (Gboard clipboard, stickers).
+      contentInsertionConfiguration: ContentInsertionConfiguration(
+        allowedMimeTypes: const ['image/png', 'image/jpeg', 'image/gif',
+            'image/webp'],
+        onContentInserted: (c) {
+          if (c.data != null) _insertImage(c.data!);
+        },
+      ),
       inputFormatters: [MarkdownListContinuation()],
       expands: true,
       maxLines: null,
@@ -511,8 +662,11 @@ class _NoteEditorState extends State<NoteEditor> {
           ),
         );
       },
-      // Privacy: never fetch remote images just by opening a note.
-      imageBuilder: (uri, title, alt) => Text(
+      // Privacy: never fetch remote images just by opening a note. Only
+      // the note's own encrypted attachments render.
+      imageBuilder: (uri, title, alt) => uri.scheme == 'attachment'
+          ? _image(uri.path)
+          : Text(
         '🖼 ${(alt ?? '').isEmpty ? uri.toString() : alt}',
         style: TextStyle(color: textColors.faint, fontSize: 14),
       ),

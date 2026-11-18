@@ -1,6 +1,7 @@
 package dev.librenotes.app
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -18,10 +19,12 @@ class MainActivity : FlutterActivity() {
     private val shareChannelName = "dev.librenotes.app/share"
     private var shareChannel: MethodChannel? = null
     private var pendingSharedText: String? = null
+    private var pendingSharedImages: List<ByteArray>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pendingSharedText = extractSharedText(intent)
+        pendingSharedImages = extractSharedImages(intent)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -36,6 +39,9 @@ class MainActivity : FlutterActivity() {
             if (call.method == "getInitialSharedText") {
                 result.success(pendingSharedText)
                 pendingSharedText = null
+            } else if (call.method == "getInitialSharedImages") {
+                result.success(pendingSharedImages)
+                pendingSharedImages = null
             } else {
                 result.notImplemented()
             }
@@ -49,6 +55,10 @@ class MainActivity : FlutterActivity() {
         if (text != null) {
             shareChannel?.invokeMethod("onSharedText", text)
         }
+        val images = extractSharedImages(intent)
+        if (images != null) {
+            shareChannel?.invokeMethod("onSharedImages", images)
+        }
     }
 
     private fun installerPackageName(): String? = try {
@@ -60,6 +70,26 @@ class MainActivity : FlutterActivity() {
         }
     } catch (e: Exception) {
         null
+    }
+
+    // Raw bytes of every image in an image SEND or SEND_MULTIPLE share.
+    @Suppress("DEPRECATION")
+    private fun extractSharedImages(intent: Intent?): List<ByteArray>? {
+        if (intent?.type?.startsWith("image/") != true) return null
+        val uris: List<Uri> = when (intent.action) {
+            Intent.ACTION_SEND ->
+                listOfNotNull(intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
+            Intent.ACTION_SEND_MULTIPLE ->
+                intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM) ?: emptyList()
+            else -> return null
+        }
+        return uris.mapNotNull { uri ->
+            try {
+                contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            } catch (e: Exception) {
+                null
+            }
+        }.ifEmpty { null }
     }
 
     private fun extractSharedText(intent: Intent?): String? {

@@ -371,7 +371,28 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: StreamBuilder<List<NoteRow>>(
+      body: ValueListenableBuilder<int?>(
+        valueListenable: widget.sync.updateNotice,
+        builder: (context, notice, child) => notice == null
+            ? child!
+            : Column(children: [
+                SafeArea(
+                  bottom: false,
+                  child: _UpdateNotice(onDismiss: widget.sync.dismissUpdateNotice),
+                ),
+                // The notice already took the status-bar inset.
+                Expanded(
+                  child: MediaQuery.removePadding(
+                      context: context, removeTop: true, child: child!),
+                ),
+              ]),
+        child: _notesBody(),
+      ),
+    );
+  }
+
+  Widget _notesBody() {
+    return StreamBuilder<List<NoteRow>>(
         stream: widget.repo.watchNotes(),
         builder: (context, snapshot) {
           final allNotes = snapshot.data ?? const <NoteRow>[];
@@ -386,7 +407,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ? _desktop(allNotes, displayed)
               : _mobile(_visible(displayed), allNotes.length, allNotes);
         },
-      ),
     );
   }
 
@@ -1129,6 +1149,38 @@ class _HomeScreenState extends State<HomeScreen> {
       case null:
         break;
     }
+  }
+}
+
+// --- Update notice ----------------------------------------------------------
+
+/// Non-blocking hint that the server supports features this app version
+/// doesn't (see `SyncService.updateNotice`). Everything keeps working.
+class _UpdateNotice extends StatelessWidget {
+  const _UpdateNotice({required this.onDismiss});
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: NotallyColors.accent.withValues(alpha: 0.12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
+        child: Row(children: [
+          const Icon(Icons.system_update_alt,
+              size: 18, color: NotallyColors.accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Your sync server supports features this version of '
+              "LibreNotes doesn't. Update the app when you can.",
+              style: TextStyle(color: NotallyColors.textPrimary, fontSize: 13),
+            ),
+          ),
+          TextButton(onPressed: onDismiss, child: const Text('Dismiss')),
+        ]),
+      ),
+    );
   }
 }
 

@@ -72,4 +72,22 @@ void main() {
     expect(got.kdfMemory, 65536);
     expect(got.kdfIterations, 3);
   });
+
+  group('attachments', () {
+    test('put/get round trip; a repeat put is a no-op', () {
+      db.putAttachment('a.png', 'n1', _bytes('first'));
+      db.putAttachment('a.png', 'n1', _bytes('second'));
+      expect(db.getAttachment('a.png'), _bytes('first'));
+      expect(db.getAttachment('missing.png'), isNull);
+    });
+
+    test('purging a note deletes only its own attachments', () {
+      db.push('n1', _bytes('c'), _bytes('x'), 0);
+      db.putAttachment('a.png', 'n1', _bytes('A'));
+      db.putAttachment('b.png', 'n2', _bytes('B'));
+      db.purge('n1');
+      expect(db.getAttachment('a.png'), isNull);
+      expect(db.getAttachment('b.png'), _bytes('B'));
+    });
+  });
 }

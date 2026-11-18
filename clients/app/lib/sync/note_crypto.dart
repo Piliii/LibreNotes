@@ -132,6 +132,24 @@ class NoteCrypto {
     );
   }
 
+  /// Encrypts raw bytes (an image) into one self-contained blob:
+  /// `nonce || ciphertext || tag`. Same DEK and AEAD as notes.
+  Future<Uint8List> encryptBytes(List<int> clear) async {
+    final box = await _aead.encrypt(clear, secretKey: _dek);
+    return box.concatenation();
+  }
+
+  /// Inverse of [encryptBytes]. Throws if the blob was tampered with or was
+  /// encrypted under a different key.
+  Future<Uint8List> decryptBytes(Uint8List blob) async {
+    final box = SecretBox.fromConcatenation(
+      blob,
+      nonceLength: _nonceLen,
+      macLength: _macLen,
+    );
+    return Uint8List.fromList(await _aead.decrypt(box, secretKey: _dek));
+  }
+
   Future<Map<String, dynamic>> decrypt(
     Uint8List ciphertext,
     Uint8List nonce,
