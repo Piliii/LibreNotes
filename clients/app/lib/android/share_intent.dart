@@ -54,20 +54,34 @@ class ShareIntentService {
   Future<void> _createNoteFromImages(List<Object?> images) async {
     final id = await _repo.createNote();
     final links = <String>[];
+    var failed = images.length - images.whereType<Uint8List>().length;
     for (final raw in images.whereType<Uint8List>()) {
       try {
         final img = await prepareImage(raw);
         links.add('![](attachment:${await _repo.addImage(id, img.bytes, img.ext)})');
-      } on ImagePrepException {
-        // skip unreadable images; the rest still make it in
+      } catch (_) {
+        failed++; // skip it; the rest still make it in
       }
     }
     if (links.isEmpty) {
       await _repo.deleteNote(id);
+      _snack(images.length == 1
+          ? "Couldn't add the shared image. It isn't an image LibreNotes can read."
+          : "Couldn't add the shared images. They aren't images LibreNotes can read.");
       return;
     }
     await _repo.updateContent(id, body: '${links.join('\n')}\n');
     _open(id);
+    if (failed > 0) {
+      _snack("$failed of ${images.length} shared images couldn't be added.");
+    }
+  }
+
+  void _snack(String message) {
+    final ctx = _navigatorKey.currentContext;
+    if (ctx == null) return;
+    ScaffoldMessenger.maybeOf(ctx)
+        ?.showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _open(String id) {

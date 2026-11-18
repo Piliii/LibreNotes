@@ -366,6 +366,7 @@ class _MergePageState extends State<_MergePage> {
               Expanded(
                 child: TextField(
                   controller: _body,
+                  strutStyle: StrutStyle.disabled, // see NoteEditor body
                   maxLines: null,
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,

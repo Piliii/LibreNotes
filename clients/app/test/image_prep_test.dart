@@ -39,4 +39,11 @@ void main() {
     await expectLater(prepareImage(Uint8List.fromList([1, 2, 3, 4, 5])),
         throwsA(isA<ImagePrepException>()));
   });
+
+  test('a corrupt file with an image header is refused, not crashed on',
+      () async {
+    final fake = Uint8List.fromList(
+        [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, ...List.filled(64, 7)]);
+    await expectLater(prepareImage(fake), throwsA(isA<ImagePrepException>()));
+  });
 }

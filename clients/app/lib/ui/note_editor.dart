@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show Directory, FileSystemException, Platform;
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
@@ -178,16 +178,50 @@ class _NoteEditorState extends State<NoteEditor> {
     );
   }
 
-  /// Shrinks, encrypts and stores [raw], then puts it on its own line at the
-  /// caret (or at the end, in Preview).
-  Future<void> _insertImage(Uint8List raw) async {
-    final PreparedImage img;
-    try {
-      img = await prepareImage(raw);
-    } on ImagePrepException catch (e) {
-      _snack(e.message);
-      return;
+  /// Adds each image, reporting anything that fails in one message instead
+  /// of throwing. Every way of adding an image goes through here. [read] may
+  /// throw (unreadable or vanished file, a folder, …).
+  Future<void> _insertImages(
+      List<(String name, Future<Uint8List?> Function() read)> items) async {
+    final failed = <String>[];
+    String? reason;
+    for (final (name, read) in items) {
+      try {
+        final bytes = await read();
+        if (bytes == null || bytes.isEmpty) {
+          throw const FileSystemException('empty');
+        }
+        await _insertImage(bytes);
+      } on ImagePrepException catch (e) {
+        failed.add(name);
+        reason = e.message;
+      } on _FolderDropped {
+        failed.add(name);
+        reason = 'Folders can\'t be added. Drop the image files instead.';
+      } on FileSystemException {
+        failed.add(name);
+        reason = "The file couldn't be read.";
+      } catch (_) {
+        failed.add(name);
+        reason = 'Something went wrong while saving it.';
+      }
     }
+    if (failed.isEmpty) return;
+    if (failed.length == 1) {
+      _snack('Couldn\'t add "${failed.single}". $reason');
+    } else {
+      final shown = failed.take(3).join('", "');
+      final more = failed.length > 3 ? ' and ${failed.length - 3} more' : '';
+      _snack('Couldn\'t add ${failed.length} files ("$shown"$more). '
+          "They aren't images or couldn't be read.");
+    }
+  }
+
+  /// Shrinks, encrypts and stores [raw], then puts it on its own line at the
+  /// caret (or at the end, in Preview). Throws [ImagePrepException] for a
+  /// file that isn't a usable image; use [_insertImages] from the UI.
+  Future<void> _insertImage(Uint8List raw) async {
+    final img = await prepareImage(raw);
     final id = await widget.repo.addImage(widget.noteId, img.bytes, img.ext);
     if (!mounted) return;
     final v = _bodyCtrl.value;
@@ -212,14 +246,21 @@ class _NoteEditorState extends State<NoteEditor> {
   }
 
   Future<void> _pickImages() async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      allowMultiple: true,
-      withData: true,
-    );
-    for (final f in picked?.files ?? const <PlatformFile>[]) {
-      if (f.bytes != null) await _insertImage(f.bytes!);
+    final FilePickerResult? picked;
+    try {
+      picked = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: true,
+        withData: true,
+      );
+    } catch (_) {
+      _snack("Couldn't open the file picker.");
+      return;
     }
+    await _insertImages([
+      for (final f in picked?.files ?? const <PlatformFile>[])
+        (f.name, () async => f.bytes),
+    ]);
   }
 
   /// Ctrl+V in the body: an image on the clipboard is embedded, anything
@@ -229,7 +270,9 @@ class _NoteEditorState extends State<NoteEditor> {
     try {
       image = await Pasteboard.image;
     } catch (_) {}
-    if (image != null && image.isNotEmpty) return _insertImage(image);
+    if (image != null && image.isNotEmpty) {
+      return _insertImages([('the pasted image', () async => image)]);
+    }
     final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
     if (text == null || text.isEmpty || !mounted) return;
     final v = _bodyCtrl.value;
@@ -320,9 +363,15 @@ class _NoteEditorState extends State<NoteEditor> {
               onDragExited: (_) => setState(() => _dragging = false),
               onDragDone: (d) async {
                 setState(() => _dragging = false);
-                for (final f in d.files) {
-                  await _insertImage(await f.readAsBytes());
-                }
+                await _insertImages([
+                  for (final f in d.files)
+                    (f.name, () async {
+                      if (!kIsWeb && Directory(f.path).existsSync()) {
+                        throw _FolderDropped();
+                      }
+                      return f.readAsBytes();
+                    }),
+                ]);
               },
               child: Stack(children: [
                 Positioned.fill(child: _editorBody(textColors)),
@@ -608,12 +657,16 @@ class _NoteEditorState extends State<NoteEditor> {
     return TextField(
       controller: _bodyCtrl,
       focusNode: _bodyFocus,
+      // TextField locks every line to one height by default, so an embedded
+      // image (or a big heading) would spill over the lines above instead of
+      // making its own line taller.
+      strutStyle: StrutStyle.disabled,
       // Images inserted from an Android keyboard (Gboard clipboard, stickers).
       contentInsertionConfiguration: ContentInsertionConfiguration(
         allowedMimeTypes: const ['image/png', 'image/jpeg', 'image/gif',
             'image/webp'],
         onContentInserted: (c) {
-          if (c.data != null) _insertImage(c.data!);
+          _insertImages([('the inserted image', () async => c.data)]);
         },
       ),
       inputFormatters: [MarkdownListContinuation()],
@@ -1194,3 +1247,6 @@ class _HighlightBuilder extends MarkdownElementBuilder {
         ),
       );
 }
+
+/// A folder was dropped on the editor (only files can become images).
+class _FolderDropped implements Exception {}

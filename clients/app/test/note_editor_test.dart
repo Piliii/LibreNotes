@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:librenotes/data/database.dart';
 import 'package:librenotes/data/notes_repository.dart';
 import 'package:librenotes/sync/note_crypto.dart';
+import 'package:librenotes/ui/attachment_image.dart';
 import 'package:librenotes/ui/note_editor.dart';
 
 /// Regression tests for the editor save/refresh behaviour that caused
@@ -128,6 +131,48 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600)); // past debounce
 
     expect((await repo.getNote(id))!.body, '- [ ] milk\n- [x] eggs\n- [ ] tea');
+    await closeEditor(tester);
+  });
+
+  testWidgets('an embedded image sits below the title, not over it',
+      (tester) async {
+    final id = await repo.createNote();
+    // Not on this device and no server: renders the 72px placeholder,
+    // which is taller than a text line, so it exercises line growth.
+    await repo.updateContent(id,
+        title: 'Cow', body: '![](attachment:missing-1.png)\nafter');
+    await openEditor(tester, id);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final title = tester.getRect(find.byType(TextField).first);
+    final image = tester.getRect(find.byType(AttachmentImage));
+    expect(image.top, greaterThanOrEqualTo(title.bottom));
+    expect(image.height, greaterThan(60));
+    await closeEditor(tester);
+  });
+
+  testWidgets('a file that is not an image shows a message, not a crash',
+      (tester) async {
+    final id = await repo.createNote();
+    await repo.updateContent(id, title: 'T', body: 'b');
+    await openEditor(tester, id);
+
+    final body = tester.widget<TextField>(find.byType(TextField).last);
+    await tester.runAsync(() async {
+      body.contentInsertionConfiguration!.onContentInserted(
+          const KeyboardInsertedContent(
+              mimeType: 'image/png', uri: 'content://x', data: null));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      body.contentInsertionConfiguration!.onContentInserted(
+          KeyboardInsertedContent(
+              mimeType: 'image/png',
+              uri: 'content://y',
+              data: Uint8List.fromList([1, 2, 3])));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    });
+    await tester.pump();
+    expect(find.textContaining("Couldn't add"), findsWidgets);
+    expect((await repo.getNote(id))!.body, 'b', reason: 'nothing inserted');
     await closeEditor(tester);
   });
 }

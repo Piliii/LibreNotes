@@ -27,7 +27,12 @@ class ImagePrepException implements Exception {
 /// right way up. Images with transparency stay PNG, everything else becomes
 /// JPEG (quality 85). GIFs are kept as they are so animations survive.
 Future<PreparedImage> prepareImage(Uint8List raw) async {
-  final out = await compute(_prepare, raw);
+  PreparedImage? out;
+  try {
+    out = await compute(_prepare, raw);
+  } catch (_) {
+    out = null; // a corrupt file can make the decoder throw
+  }
   if (out == null) {
     throw ImagePrepException("This file isn't an image LibreNotes can read.");
   }

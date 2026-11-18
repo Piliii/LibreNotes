@@ -145,7 +145,15 @@ class _AttachmentImageState extends State<AttachmentImage> {
         await Clipboard.setData(
             ClipboardData(text: '![](attachment:${widget.id})'));
       case 'save':
-        await _save(bytes!);
+        try {
+          await _save(bytes!);
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.maybeOf(context)?.showSnackBar(const SnackBar(
+                content: Text("Couldn't save the image there. Pick another "
+                    'folder, or check that you can write to it.')));
+          }
+        }
       case 'remove':
         widget.onRemove?.call();
     }
