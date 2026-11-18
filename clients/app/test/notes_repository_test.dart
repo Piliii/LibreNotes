@@ -208,4 +208,39 @@ void main() {
       expect(await repo.searchIds('bravo'), isEmpty);
     });
   });
+
+  group('folder and tags', () {
+    test('round-trip through the encrypted blob and survive text edits',
+        () async {
+      final id = await repo.createNote();
+      await repo.markSynced(id, rev: 1, seq: 1);
+      await repo.setFolder(id, '  Work ');
+      await repo.setTags(id, ['#Ideas', 'ideas', ' todo ', '', 'Todo']);
+
+      var n = (await repo.getNote(id))!;
+      expect(n.folder, 'Work');
+      expect(n.tags, ['ideas', 'todo']);
+      expect(n.dirty, isTrue);
+
+      await repo.updateContent(id, title: 'T', body: 'B');
+      n = (await repo.getNote(id))!;
+      expect(n.folder, 'Work');
+      expect(n.tags, ['ideas', 'todo']);
+
+      await repo.setFolder(id, '');
+      await repo.setTags(id, []);
+      n = (await repo.getNote(id))!;
+      expect(n.folder, '');
+      expect(n.tags, isEmpty);
+      expect(n.extra.containsKey('folder'), isFalse);
+      expect(n.extra.containsKey('tags'), isFalse);
+    });
+
+    test('tags are searchable', () async {
+      final id = await repo.createNote();
+      await repo.updateContent(id, body: 'nothing here');
+      await repo.setTags(id, ['recipes']);
+      expect(await repo.searchIds('recipe'), {id});
+    });
+  });
 }

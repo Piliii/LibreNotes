@@ -12,6 +12,13 @@ plain semver-ish tags (`vX.Y.Z`).
   and see ☐ / ☑ state in note cards and list previews.
 - Notes with a self-destruct timer show the time remaining ("5h", "2d") next
   to the hourglass on their card.
+- Folders and tags: put a note in a folder and give it tags from the chips
+  under its title, then filter by them from the chip row above the note list.
+  A search also matches tags. Both are encrypted like the rest of the note.
+  Export writes each folder as a subdirectory with the folder and tags in
+  front matter, and import reads them back. **Update every device to this
+  version before you use them:** older versions drop folders and tags when
+  they save an edit.
 
 ### Changed
 - Note fields written by a newer app version are now kept when an older

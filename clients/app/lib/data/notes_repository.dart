@@ -30,6 +30,15 @@ class NoteRow {
   /// doesn't wipe them for the devices that do understand them.
   final Map<String, dynamic> extra;
 
+  /// Flat, single-level folder name; '' means none. Lives in [extra] so it
+  /// rides the same encrypted payload (locally and on the wire) as every
+  /// other key, with no schema or sync change.
+  String get folder => extra['folder'] as String? ?? '';
+
+  /// Normalised (trimmed, lowercase, unique) tag names. See [folder].
+  List<String> get tags =>
+      (extra['tags'] as List?)?.whereType<String>().toList() ?? const [];
+
   const NoteRow({
     required this.id,
     required this.title,
@@ -48,6 +57,14 @@ class NoteRow {
     this.extra = const {},
   });
 }
+
+/// Trims, lowercases, strips a leading '#', drops empties and duplicates
+/// (first occurrence wins, order kept).
+List<String> normaliseTags(Iterable<String> tags) => tags
+    .map((t) => t.trim().toLowerCase().replaceFirst(RegExp(r'^#+'), '').trim())
+    .where((t) => t.isNotEmpty)
+    .toSet()
+    .toList();
 
 /// How long a note stays in the trash before [NotesRepository.sweepTrash]
 /// permanently deletes it.
@@ -155,7 +172,7 @@ class NotesRepository {
           for (final n in notes) {
             await _db.customStatement(
               'INSERT INTO temp.notes_fts(id, title, body) VALUES (?, ?, ?)',
-              [n.id, n.title, n.body],
+              [n.id, n.title, '${n.body}\n${n.tags.join(' ')}'],
             );
           }
         });
@@ -366,6 +383,32 @@ class NotesRepository {
         updatedAt: textChanged
             ? Value(DateTime.now().millisecondsSinceEpoch)
             : const Value.absent(),
+        dirty: const Value(true),
+      ),
+    );
+  }
+
+  /// Moves a note into [folder] ('' = no folder).
+  Future<void> setFolder(String id, String folder) =>
+      _setExtra(id, 'folder', folder.trim());
+
+  /// Replaces a note's tags; see [normaliseTags].
+  Future<void> setTags(String id, Iterable<String> tags) =>
+      _setExtra(id, 'tags', normaliseTags(tags));
+
+  /// Re-encrypts the content blob with [key] set (or removed when empty).
+  /// Like pin/color, this doesn't bump updatedAt, so it doesn't reorder.
+  Future<void> _setExtra(String id, String key, Object value) async {
+    final current = await getNote(id);
+    if (current == null) return;
+    final extra = Map.of(current.extra);
+    final empty = value is String ? value.isEmpty : (value as List).isEmpty;
+    empty ? extra.remove(key) : extra[key] = value;
+    final enc = await _encryptContent(current.title, current.body, extra);
+    await (_db.update(_db.notes)..where((t) => t.id.equals(id))).write(
+      NotesCompanion(
+        contentCiphertext: Value(enc.ciphertext),
+        contentNonce: Value(enc.nonce),
         dirty: const Value(true),
       ),
     );

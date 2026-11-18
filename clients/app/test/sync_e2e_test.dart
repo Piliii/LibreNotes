@@ -241,6 +241,18 @@ void main() {
     expect(payload['tags'], ['a', 'b']);
   });
 
+  test('folder and tags set on one device reach the other', () async {
+    final id = await dev1.write(title: 'Trip', body: 'pack');
+    await dev1.repo.setFolder(id, 'Travel');
+    await dev1.repo.setTags(id, ['summer', 'todo']);
+    await dev1.sync.syncNow();
+
+    await dev2.sync.syncNow();
+    final n = (await dev2.repo.getNote(id))!;
+    expect(n.folder, 'Travel');
+    expect(n.tags, ['summer', 'todo']);
+  });
+
   test('a delete on one device propagates as a tombstone to the other',
       () async {
     final id = await dev1.write(title: 'Temp', body: 'throwaway');

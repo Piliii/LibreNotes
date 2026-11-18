@@ -12,6 +12,46 @@ import '../theme.dart';
 /// files from other apps and immediately encrypts them into the local store.
 /// Decryption/encryption only ever happens here, at this user-triggered
 /// boundary — nothing sits in plaintext on disk automatically.
+/// YAML-style front matter for an exported note; '' when there's nothing
+/// to say, so plain notes export exactly as before.
+String frontMatter(String folder, List<String> tags) {
+  if (folder.isEmpty && tags.isEmpty) return '';
+  return [
+    '---',
+    if (folder.isNotEmpty) 'folder: $folder',
+    if (tags.isNotEmpty) 'tags: [${tags.join(', ')}]',
+    '---',
+    '',
+  ].join('\n');
+}
+
+/// Reads back what [frontMatter] writes (only the `folder` and `tags` keys;
+/// other keys are ignored). Text without a leading `---` block is returned
+/// untouched as [rest].
+({String folder, List<String> tags, String rest}) parseFrontMatter(
+    String raw) {
+  final m = RegExp(r'^---\r?\n([\s\S]*?)\r?\n---\r?\n?').firstMatch(raw);
+  if (m == null) return (folder: '', tags: const [], rest: raw);
+  var folder = '';
+  var tags = <String>[];
+  for (final line in m.group(1)!.split('\n')) {
+    final i = line.indexOf(':');
+    if (i < 0) continue;
+    final key = line.substring(0, i).trim();
+    final value = line.substring(i + 1).trim();
+    if (key == 'folder') folder = value;
+    if (key == 'tags') {
+      tags = value
+          .replaceAll(RegExp(r'^\[|\]$'), '')
+          .split(',')
+          .map((t) => t.trim())
+          .where((t) => t.isNotEmpty)
+          .toList();
+    }
+  }
+  return (folder: folder, tags: tags, rest: raw.substring(m.end));
+}
+
 class ImportExportPage extends StatefulWidget {
   const ImportExportPage({super.key, required this.repo});
 
@@ -42,10 +82,15 @@ class _ImportExportPageState extends State<ImportExportPage> {
       final notes = await widget.repo.getAllForExport();
       final usedNames = <String>{};
       for (final note in notes) {
-        final name = _fileNameFor(note, usedNames);
+        // Folders become subdirectories; the front matter is what import
+        // reads back (it picks files, so it can't see the directory).
+        final sub = note.folder.isEmpty ? '' : '${_safe(note.folder)}/';
+        if (sub.isNotEmpty) await Directory('$dir/$sub').create();
+        final name = sub + _fileNameFor(note, usedNames, sub);
         final content =
             note.title.isEmpty ? note.body : '# ${note.title}\n\n${note.body}';
-        await File('$dir/$name').writeAsString(content);
+        await File('$dir/$name')
+            .writeAsString(frontMatter(note.folder, note.tags) + content);
       }
       _finish('Exported ${notes.length} note(s) to $dir', isError: false);
     } catch (e) {
@@ -55,7 +100,7 @@ class _ImportExportPageState extends State<ImportExportPage> {
 
   /// Builds a filesystem-safe, unique `.md` filename from a note's title (or
   /// its first non-blank body line, if untitled).
-  String _fileNameFor(NoteRow note, Set<String> usedNames) {
+  String _fileNameFor(NoteRow note, Set<String> usedNames, String dir) {
     var base = note.title.trim();
     if (base.isEmpty) {
       base = note.body
@@ -63,17 +108,21 @@ class _ImportExportPageState extends State<ImportExportPage> {
           .map((l) => l.trim())
           .firstWhere((l) => l.isNotEmpty, orElse: () => 'note');
     }
-    var slug = base.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
-    if (slug.isEmpty) slug = 'note';
+    var slug = _safe(base);
     if (slug.length > 60) slug = slug.substring(0, 60);
 
     var name = '$slug.md';
     var suffix = 2;
-    while (!usedNames.add(name)) {
+    while (!usedNames.add('$dir$name')) {
       name = '$slug ($suffix).md';
       suffix++;
     }
     return name;
+  }
+
+  static String _safe(String s) {
+    final out = s.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+    return out.isEmpty || out == '.' || out == '..' ? 'note' : out;
   }
 
   Future<void> _import() async {
@@ -97,9 +146,12 @@ class _ImportExportPageState extends State<ImportExportPage> {
         final path = file.path;
         if (path == null) continue;
         final raw = await File(path).readAsString();
-        final (title, body) = _splitTitle(raw);
+        final (:folder, :tags, :rest) = parseFrontMatter(raw);
+        final (title, body) = _splitTitle(rest);
         final id = await widget.repo.createNote();
         await widget.repo.updateContent(id, title: title, body: body);
+        if (folder.isNotEmpty) await widget.repo.setFolder(id, folder);
+        if (tags.isNotEmpty) await widget.repo.setTags(id, tags);
         count++;
       }
       _finish('Imported $count note(s)', isError: false);

@@ -332,7 +332,19 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  /// Active folder/tag filter: `f:<folder>`, `t:<tag>`, or null for all.
+  String? _filter;
+
   List<NoteRow> _filtered(List<NoteRow> notes) {
+    final f = _filter;
+    if (f != null) {
+      final name = f.substring(2);
+      notes = notes
+          .where((n) => f.startsWith('f:')
+              ? n.folder == name
+              : n.tags.contains(name))
+          .toList();
+    }
     if (_searchQuery.isEmpty) return notes;
     final ids = _ftsQuery == _searchQuery ? _ftsIds : null;
     if (ids != null) return notes.where((n) => ids.contains(n.id)).toList();
@@ -340,7 +352,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return notes
         .where((n) =>
             n.title.toLowerCase().contains(q) ||
-            n.body.toLowerCase().contains(q))
+            n.body.toLowerCase().contains(q) ||
+            n.tags.any((t) => t.contains(q)))
         .toList();
   }
 
@@ -362,16 +375,26 @@ class _HomeScreenState extends State<HomeScreen> {
         stream: widget.repo.watchNotes(),
         builder: (context, snapshot) {
           final allNotes = snapshot.data ?? const <NoteRow>[];
+          // A filter whose folder/tag no longer exists would hide everything.
+          if (_filter != null && !_FilterBar.keysOf(allNotes).contains(_filter)) {
+            _filter = null;
+          }
           final displayed = _filtered(allNotes);
           final isDesktop =
               MediaQuery.sizeOf(context).width >= _desktopBreakpoint;
           return isDesktop
               ? _desktop(allNotes, displayed)
-              : _mobile(_visible(displayed), allNotes.length);
+              : _mobile(_visible(displayed), allNotes.length, allNotes);
         },
       ),
     );
   }
+
+  Widget _filterBar(List<NoteRow> allNotes) => _FilterBar(
+        notes: allNotes,
+        selected: _filter,
+        onSelect: (f) => setState(() => _filter = f),
+      );
 
   // ---- Desktop -------------------------------------------------------------
 
@@ -413,7 +436,8 @@ class _HomeScreenState extends State<HomeScreen> {
             searchController: _searchController,
             searchFocus: _searchFocus,
             onSearchChanged: _setQuery,
-            hasQuery: _searchQuery.isNotEmpty,
+            hasQuery: _searchQuery.isNotEmpty || _filter != null,
+            filterBar: _filterBar(allNotes),
           ),
         ),
         _ResizeHandle(
@@ -558,7 +582,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ---- Mobile --------------------------------------------------------------
 
-  Widget _mobile(List<NoteRow> notes, int totalCount) {
+  Widget _mobile(List<NoteRow> notes, int totalCount, List<NoteRow> allNotes) {
     final pinned = notes.where((n) => n.pinned).toList();
     final unpinned = notes.where((n) => !n.pinned).toList();
     final hasSections =
@@ -701,6 +725,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                   ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _filterBar(allNotes),
                 ),
               ),
               if (notes.isEmpty && _searchQuery.isNotEmpty)
@@ -1102,6 +1132,73 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+// --- Folder / tag filter ----------------------------------------------------
+
+/// Horizontal chip row: All, then every folder and tag in use. Hidden when
+/// no note has either.
+class _FilterBar extends StatelessWidget {
+  const _FilterBar({
+    required this.notes,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  final List<NoteRow> notes;
+  final String? selected;
+  final ValueChanged<String?> onSelect;
+
+  /// Filter keys (`f:<folder>`, `t:<tag>`), folders first, each sorted.
+  static List<String> keysOf(List<NoteRow> notes) {
+    int cmp(String a, String b) => a.toLowerCase().compareTo(b.toLowerCase());
+    final folders = notes.map((n) => n.folder).where((f) => f.isNotEmpty);
+    final tags = notes.expand((n) => n.tags);
+    return [
+      ...(folders.toSet().toList()..sort(cmp)).map((f) => 'f:$f'),
+      ...(tags.toSet().toList()..sort(cmp)).map((t) => 't:$t'),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final keys = keysOf(notes);
+    if (keys.isEmpty) return const SizedBox.shrink();
+    Widget chip(String? key, String label, [IconData? icon]) {
+      final on = key == selected;
+      return Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: ChoiceChip(
+          selected: on,
+          showCheckmark: false,
+          visualDensity: VisualDensity.compact,
+          avatar: icon == null
+              ? null
+              : Icon(icon,
+                  size: 14,
+                  color: on ? Colors.white : NotallyColors.textFaint),
+          label: Text(label),
+          labelStyle: TextStyle(
+              fontSize: 12, color: on ? Colors.white : NotallyColors.textMuted),
+          selectedColor: NotallyColors.accent,
+          onSelected: (_) => onSelect(on ? null : key),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: [
+          chip(null, 'All'),
+          for (final k in keys)
+            chip(k, k.substring(2),
+                k.startsWith('f:') ? Icons.folder_outlined : Icons.sell_outlined),
+        ]),
+      ),
+    );
+  }
+}
+
 // --- Desktop sidebar --------------------------------------------------------
 
 class _Sidebar extends StatelessWidget {
@@ -1120,8 +1217,10 @@ class _Sidebar extends StatelessWidget {
     required this.searchFocus,
     required this.onSearchChanged,
     required this.hasQuery,
+    this.filterBar,
   });
 
+  final Widget? filterBar;
   final List<NoteRow> notes;
   final String? selectedId;
   final Set<String> selectedIds;
@@ -1211,6 +1310,7 @@ class _Sidebar extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (filterBar != null) filterBar!,
                 const SizedBox(height: 12),
                 FilledButton(
                   onPressed: onNew,

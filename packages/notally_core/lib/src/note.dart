@@ -22,6 +22,13 @@ class Note {
   /// does. Lives in the encrypted payload, like [pinned]/[color]/[archived].
   int? expiresAt;
 
+  /// Flat, single-level folder name; '' means none. Omitted from the
+  /// payload when empty.
+  String folder;
+
+  /// Free-form tags (trimmed, lowercase, unique). Omitted when empty.
+  List<String> tags;
+
   // Sync metadata cached from the server.
   int rev;
   int seq;
@@ -36,6 +43,8 @@ class Note {
     required this.createdAt,
     required this.updatedAt,
     this.expiresAt,
+    this.folder = '',
+    this.tags = const [],
     this.rev = 0,
     this.seq = 0,
     this.deleted = false,
@@ -50,6 +59,8 @@ class Note {
     'color': color,
     'createdAt': createdAt,
     'expiresAt': expiresAt,
+    if (folder.isNotEmpty) 'folder': folder,
+    if (tags.isNotEmpty) 'tags': tags,
   };
 
   factory Note.fromPayload(
@@ -68,6 +79,8 @@ class Note {
     createdAt: p['createdAt'] as int? ?? updatedAt,
     updatedAt: updatedAt,
     expiresAt: p['expiresAt'] as int?,
+    folder: p['folder'] as String? ?? '',
+    tags: (p['tags'] as List?)?.whereType<String>().toList() ?? const [],
     rev: rev,
     seq: seq,
     deleted: deleted,

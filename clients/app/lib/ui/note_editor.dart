@@ -259,6 +259,7 @@ class _NoteEditorState extends State<NoteEditor> {
                       hintStyle: TextStyle(color: textColors.faint),
                     ),
                   ),
+                  _metaRow(textColors),
                   const SizedBox(height: 8),
                   Expanded(
                     child: _preview
@@ -270,6 +271,126 @@ class _NoteEditorState extends State<NoteEditor> {
                 ],
               ),
             ),
+    );
+  }
+
+  /// Folder chip + tag chips under the title.
+  Widget _metaRow(NoteTextColors textColors) {
+    final folder = _note?.folder ?? '';
+    final tags = _note?.tags ?? const <String>[];
+    final style = TextStyle(color: textColors.muted, fontSize: 13);
+    Widget chip(IconData icon, String label, VoidCallback onTap,
+            {VoidCallback? onRemove, String? tooltip}) =>
+        Tooltip(
+          message: tooltip ?? '',
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                border: Border.all(color: textColors.faint.withValues(alpha: 0.4)),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(icon, size: 14, color: textColors.faint),
+                const SizedBox(width: 4),
+                Text(label, style: style),
+                if (onRemove != null) ...[
+                  const SizedBox(width: 2),
+                  InkWell(
+                    onTap: onRemove,
+                    child: Icon(Icons.close, size: 13, color: textColors.faint),
+                  ),
+                ],
+              ]),
+            ),
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Wrap(spacing: 6, runSpacing: 6, children: [
+        Builder(
+          builder: (ctx) => chip(
+            Icons.folder_outlined,
+            folder.isEmpty ? 'No folder' : folder,
+            () => _pickFolder(ctx),
+            tooltip: 'Folder',
+          ),
+        ),
+        for (final t in tags)
+          chip(Icons.sell_outlined, t, () {},
+              onRemove: () => _setTags([...tags]..remove(t))),
+        chip(Icons.add, 'Tag', _addTags, tooltip: 'Add tags'),
+      ]),
+    );
+  }
+
+  Future<void> _pickFolder(BuildContext anchor) async {
+    final current = _note?.folder ?? '';
+    final folders = (await widget.repo.getAllForExport())
+        .map((n) => n.folder)
+        .where((f) => f.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    if (!mounted || !anchor.mounted) return;
+    final box = anchor.findRenderObject() as RenderBox;
+    final pos = box.localToGlobal(Offset(0, box.size.height));
+    const newFolder = '\u0000new';
+    final picked = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx, pos.dy),
+      items: [
+        for (final f in folders)
+          CheckedPopupMenuItem(value: f, checked: f == current, child: Text(f)),
+        if (folders.isNotEmpty) const PopupMenuDivider(),
+        const PopupMenuItem(value: newFolder, child: Text('New folder…')),
+        if (current.isNotEmpty)
+          const PopupMenuItem(value: '', child: Text('Remove from folder')),
+      ],
+    );
+    if (picked == null) return;
+    final folder = picked == newFolder
+        ? await _promptText('New folder', 'Folder name')
+        : picked;
+    if (folder == null || folder.trim() == current) return;
+    if (picked == newFolder && folder.trim().isEmpty) return;
+    await widget.repo.setFolder(widget.noteId, folder);
+    widget.onEdited?.call();
+  }
+
+  Future<void> _addTags() async {
+    final input = await _promptText('Add tags', 'work, ideas');
+    if (input == null) return;
+    await _setTags([...?_note?.tags, ...input.split(',')]);
+  }
+
+  Future<void> _setTags(List<String> tags) async {
+    await widget.repo.setTags(widget.noteId, tags);
+    widget.onEdited?.call();
+  }
+
+  Future<String?> _promptText(String title, String hint) {
+    final ctrl = TextEditingController();
+    void submit(BuildContext ctx) => Navigator.pop(ctx, ctrl.text);
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: InputDecoration(hintText: hint),
+          onSubmitted: (_) => submit(ctx),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          TextButton(onPressed: () => submit(ctx), child: const Text('OK')),
+        ],
+      ),
     );
   }
 
