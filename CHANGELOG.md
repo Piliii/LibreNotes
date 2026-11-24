@@ -6,6 +6,8 @@ plain semver-ish tags (`vX.Y.Z`).
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-11-25
+
 ### Added
 - Checklists: tap a checkbox in Preview to tick it, use the new Checklist
   toolbar button to turn the current line (or selection) into `- [ ]` tasks,
@@ -39,6 +41,9 @@ plain semver-ish tags (`vX.Y.Z`).
   server is upgraded.
 
 ### Changed
+- Phone editor: a back button leads the toolbar, the edited/self-destruct
+  status sits under the title, and Checklist and Insert image moved into the
+  ⋮ menu.
 - Note fields written by a newer app version are now kept when an older
   version edits the note, instead of being dropped. Groundwork for folders;
   versions before this one still drop them.

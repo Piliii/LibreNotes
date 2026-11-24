@@ -1,0 +1,5 @@
+- Checklists: tick boxes in Preview, new Checklist button
+- Folders and tags, encrypted like notes. Update every device before using them: older versions drop them on edit
+- Images in notes: insert, paste, drag in, or share from other apps. Encrypted, shrunk, and stripped of location data
+- Time remaining shown on self-destruct notes
+- Notice when your server supports newer features than the app
