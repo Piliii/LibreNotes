@@ -28,6 +28,7 @@ class NoteEditor extends StatefulWidget {
     this.onDeleted,
     this.onEdited,
     this.autoFocus = false,
+    this.compact = false,
   });
 
   final NotesRepository repo;
@@ -40,6 +41,10 @@ class NoteEditor extends StatefulWidget {
 
   /// If true, focuses the body text field once the note finishes loading.
   final bool autoFocus;
+
+  /// Full-screen phone layout: a back button leads the toolbar, the status
+  /// line moves under the title, and checklist/image fold into the ⋮ menu.
+  final bool compact;
 
   @override
   State<NoteEditor> createState() => _NoteEditorState();
@@ -486,7 +491,12 @@ class _NoteEditorState extends State<NoteEditor> {
         );
     return Padding(
       padding: const EdgeInsets.only(top: 2),
-      child: Wrap(spacing: 6, runSpacing: 6, children: [
+      child: Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+        if (widget.compact) _status(textColors),
         Builder(
           builder: (ctx) => chip(
             Icons.folder_outlined,
@@ -571,23 +581,31 @@ class _NoteEditorState extends State<NoteEditor> {
     );
   }
 
+  Widget _status(NoteTextColors textColors) => Text(
+        _note == null
+            ? 'New note'
+            : _expiresAt != null
+                ? 'Self-destructs ${untilExpiry(_expiresAt!)}'
+                : 'Edited ${relative(_note!.updatedAt)}',
+        style: NotallyType.caption.copyWith(
+          color: _expiresAt != null ? NotallyColors.accent : textColors.faint,
+        ),
+      );
+
+  void _toggleChecklist() {
+    _bodyCtrl.toggleChecklist();
+    _bodyFocus.requestFocus();
+  }
+
   Widget _toolbar(NoteTextColors textColors) {
+    final compact = widget.compact;
     return Row(
       children: [
-        Expanded(
-          child: Text(
-            _note == null
-                ? 'New note'
-                : _expiresAt != null
-                    ? 'Self-destructs ${untilExpiry(_expiresAt!)}'
-                    : 'Edited ${relative(_note!.updatedAt)}',
-            style: NotallyType.caption.copyWith(
-              color: _expiresAt != null
-                  ? NotallyColors.accent
-                  : textColors.faint,
-            ),
-          ),
-        ),
+        if (compact) ...[
+          BackButton(color: textColors.primary),
+          const Spacer(),
+        ] else
+          Expanded(child: _status(textColors)),
         _ToolButton(
           icon: _note?.pinned == true ? Icons.push_pin : Icons.push_pin_outlined,
           tooltip: _note?.pinned == true ? 'Unpin' : 'Pin',
@@ -601,22 +619,20 @@ class _NoteEditorState extends State<NoteEditor> {
           onTap: _pickColor,
           color: textColors.faint,
         ),
-        if (!_preview)
+        if (!compact && !_preview)
           _ToolButton(
             icon: Icons.checklist,
             tooltip: 'Checklist',
-            onTap: () {
-              _bodyCtrl.toggleChecklist();
-              _bodyFocus.requestFocus();
-            },
+            onTap: _toggleChecklist,
             color: textColors.faint,
           ),
-        _ToolButton(
-          icon: Icons.image_outlined,
-          tooltip: 'Insert image',
-          onTap: _pickImages,
-          color: textColors.faint,
-        ),
+        if (!compact)
+          _ToolButton(
+            icon: Icons.image_outlined,
+            tooltip: 'Insert image',
+            onTap: _pickImages,
+            color: textColors.faint,
+          ),
         _ToolButton(
           icon: _preview ? Icons.edit_outlined : Icons.visibility_outlined,
           tooltip: _preview ? 'Edit (Ctrl+E)' : 'Preview (Ctrl+E)',
@@ -629,6 +645,17 @@ class _NoteEditorState extends State<NoteEditor> {
           icon: Icon(Icons.more_vert, size: 20, color: textColors.faint),
           onSelected: (f) => f(),
           itemBuilder: (_) => [
+            if (compact) ...[
+              if (!_preview)
+                PopupMenuItem(
+                    value: _toggleChecklist,
+                    child: const _EditorMenuRow(Icons.checklist, 'Checklist')),
+              PopupMenuItem(
+                  value: _pickImages,
+                  child: const _EditorMenuRow(
+                      Icons.image_outlined, 'Insert image')),
+              const PopupMenuDivider(),
+            ],
             PopupMenuItem(
                 value: _archive,
                 child: const _EditorMenuRow(Icons.archive_outlined, 'Archive')),
@@ -839,23 +866,17 @@ class NoteEditorPage extends StatelessWidget {
       builder: (context, snap) {
         final color = snap.data?.color ?? '#2a2a2a';
         final bg = noteBackgroundDecoration(color);
-        final textColors = NoteTextColors.forBackground(color);
         return AnimatedContainer(
           duration: const Duration(milliseconds: 280),
           curve: Curves.easeOut,
           decoration: bg,
           child: Scaffold(
             backgroundColor: Colors.transparent,
-            appBar: AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              iconTheme: IconThemeData(color: textColors.primary),
-            ),
             body: SafeArea(
               child: NoteEditor(
                 repo: repo,
                 noteId: noteId,
+                compact: true,
                 onEdited: onEdited,
                 onDeleted: () => Navigator.of(context).maybePop(),
               ),
