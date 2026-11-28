@@ -10,11 +10,6 @@
   <a href="https://discord.gg/ujpqT4Q3je"><img src="https://img.shields.io/badge/chat-Discord-ff6900?logo=discord&logoColor=white" alt="Join the Discord"/></a>
 </p>
 
-> [!WARNING]
-> **This project is archived as of 27 November 2026.** It is no longer maintained:
-> no new features, bug fixes, or releases. Existing releases remain available, and
-> the code stays here under AGPLv3 for anyone who wants to fork it.
-
 <p align="center">
   A private, self-hosted, end-to-end encrypted note-taking app.<br/>
   One owner, many devices. The server stores only ciphertext.

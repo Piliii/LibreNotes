@@ -1,5 +1,3 @@
-Note: this project was archived on 27 November 2026 and is no longer maintained. No new features, fixes, or releases will be published.
-
 LibreNotes is a private, self-hosted note-taking app with end-to-end encryption. Your notes are stored only on your own server — no cloud accounts, no third-party services, no tracking.
 
 Features:
